@@ -408,9 +408,7 @@ local driver = Driver("legrand-rflc", {
     sub_drivers = {
         {
             NAME = PARENT,
-            can_handle = function(_, _, device)
-                return device.st_store.manufacturer == MANUFACTURER and device.st_store.model == PARENT
-            end,
+            can_handle = function(_, _, device) return device.st_store.model == PARENT end,
             lifecycle_handlers = {
                 init = function(driver, device) Parent(driver, device) end,
                 infoChanged = function(_, device, event, args) Adapter.call(device, INFO_CHANGED, event, args) end,
@@ -419,17 +417,13 @@ local driver = Driver("legrand-rflc", {
         },
         {
             NAME = SWITCH,
-            can_handle = function(_, _, device)
-                return device.st_store.manufacturer == MANUFACTURER and device.st_store.model == SWITCH
-            end,
+            can_handle = function(_, _, device) return device.st_store.model == SWITCH end,
             lifecycle_handlers = {init = function(driver, device) Switch(driver, device) end},
             capability_handlers = Switch.capability_handlers,
         },
         {
             NAME = DIMMER,
-            can_handle = function(_, _, device)
-                return device.st_store.manufacturer == MANUFACTURER and device.st_store.model == DIMMER
-            end,
+            can_handle = function(_, _, device) return device.st_store.model == DIMMER end,
             lifecycle_handlers = {init = function(driver, device) Dimmer(driver, device) end},
             capability_handlers = Dimmer.capability_handlers,
         },

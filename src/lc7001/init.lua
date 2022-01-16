@@ -15,8 +15,6 @@ local Emitter       = require "util.emitter"
 local Reader        = require "util.reader"
 local resolve       = require "util.resolve"
 
-local socket        = cosock.socket    -- layer over require("socket")
-
 local function super(class)
     return getmetatable(class).__index
 end
@@ -558,12 +556,12 @@ local M = {
             local stop_error
             local backoff = 0
             while true do
-                local client = socket.tcp()
+                local client = cosock.socket.tcp()
                 local connected, connect_error = client:connect(self._host, self._port)
                 if connected then
-                    client:settimeout(0)
+                    client:settimeout(0)    -- when anything ready, receive something
                     self._reader = Reader(function()
-                        local _, _, receive_error = socket.select({client}, {}, read_timeout)
+                        local _, _, receive_error = cosock.socket.select({client}, {}, read_timeout)
                         if receive_error then
                             error(receive_error, 0)     -- expect "timeout", below
                         end
@@ -608,7 +606,7 @@ local M = {
                     end
                 end
                 -- reconnect after capped exponential backoff
-                socket.sleep(1 << math.min(backoff, backoff_cap))
+                cosock.socket.sleep(1 << math.min(backoff, backoff_cap))
                 backoff = backoff + 1
             end
             log.debug(self.EVENT_STOPPED)
@@ -703,7 +701,6 @@ local M = {
             else
                 local sender, receiver = cosock.channel.new()
                 self._discover_sender = sender
-                receiver:settimeout(0)
                 cosock.spawn(function()
                     local backoff = 0
                     while true do
@@ -714,7 +711,7 @@ local M = {
                         end)
                         -- rediscover after capped exponential backoff
                         -- or our receiver hears from our sender.
-                        if socket.select({receiver}, {}, 1 << math.min(backoff, backoff_cap)) then
+                        if cosock.socket.select({receiver}, {}, 1 << math.min(backoff, backoff_cap)) then
                             log.debug("rediscover")
                             backoff = receiver:receive()
                         else
