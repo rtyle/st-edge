@@ -330,7 +330,7 @@ local driver = Driver("legrand-rflc", {
                 local parent = parent_by_device_network_id[device_network_id]
                 if not parent then
                     -- try to create parent device for hub
-                    local label = "Legrand Whole House Lighting Controller"
+                    local label = "Legrand Whole House Lighting Controller " .. device_network_id
                     log.debug("discovery", "create", device_network_id, PARENT, label)
                     driver:try_create_device({
                         type = "LAN",
