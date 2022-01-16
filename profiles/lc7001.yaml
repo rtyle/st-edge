@@ -1,0 +1,17 @@
+name: lc7001
+components:
+- id: main
+  capabilities:
+  - id: refresh
+    version: 1
+  categories:
+  - name: Bridges
+preferences:
+  - name: "password"
+    title: "Password"
+    description: "Lighting Control System Password"
+    required: true
+    preferenceType: string
+    definition:
+      stringType: password
+      default: "........"

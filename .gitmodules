@@ -1,0 +1,6 @@
+[submodule "modules/luarocks"]
+	path = modules/luarocks
+	url = https://github.com/luarocks/luarocks.git
+[submodule "modules/lockbox"]
+	path = modules/lockbox
+	url = git@github.com:rtyle/lua-lockbox.git

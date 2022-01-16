@@ -1,0 +1,29 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"launch": {
+		"version": "0.2.0",
+		"configurations": [
+			{
+				"type": "lua",
+				"request": "launch",
+				"name": "Debug",
+			}
+		]
+	},
+	"settings": {
+		"lua.debug.settings.path": [
+			"${workspaceFolder}/src/?.lua",
+			"${workspaceFolder}/src/?/init.lua",
+			"${workspaceFolder}/lua_modules/share/lua/5.3/?.lua",
+			"${workspaceFolder}/lua_modules/share/lua/5.3/?/init.lua",
+		],
+		"lua.debug.settings.cpath": [
+			"${workspaceFolder}/lua_modules/lib/lua/5.3/?.so",
+		],
+		"lua.debug.settings.luaVersion": "5.3"
+	}
+}
