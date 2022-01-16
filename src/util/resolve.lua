@@ -1,7 +1,5 @@
 local cosock = require "cosock"
 
-local socket = cosock.socket
-
 -- mDNS
 local MULTIADDR = "224.0.0.251"
 local PORT = 5353
@@ -51,14 +49,14 @@ return function(name, resolution)
         -- a, b, c, d   -- IPv4 address octets
     })
 
-    local resolver = socket.udp()
+    local resolver = cosock.socket.udp()
 
     -- ask question, expect unicast response to our ephemeral port
     resolver:sendto(question, MULTIADDR, PORT)
 
     -- after a short wait, receive all answers and dispatch any resolution
-    socket.sleep(0.1)
-    while socket.select({resolver}, {}, 0.001) do
+    cosock.socket.sleep(0.1)
+    while cosock.socket.select({resolver}, {}, 0.001) do
         local answer = resolver:receive(2048)
         if #answer_prefix + 4 <= answer:len() then
             local match = {answer:byte(1, #answer_prefix)}
