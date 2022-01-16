@@ -84,6 +84,8 @@ and a device with Switch (and possibly SwitchLevel) capabilities for each light/
 Control the lights from SmartThings in the expected way, including refreshing their status with a swipe on their page.
 Refreshing the status of all lights associated with an LC7001 controller can be done by swiping on its page.
 
+Removing the device for an LC7001 controller will remove all of its associated devices.
+
 ## Development
 
 ### Command line lua
