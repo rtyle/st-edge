@@ -1,6 +1,10 @@
 # st-edge-legrand-rflc
 
-## Deploy
+## Deployment
+
+### Deployment from Source
+
+These instructions are written for a Linux platform. Similar steps may be taken for MacOS or Windows.
 
 Get source
 
