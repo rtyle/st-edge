@@ -1,5 +1,5 @@
 name: 'Legrand RFLC'
-packageKey: 'github.com/rtyle/st-edge-legrand-rflc'
+packageKey: 'github/rtyle/st-edge-legrand-rflc'
 permissions:
   lan: {}
   discovery: {}
