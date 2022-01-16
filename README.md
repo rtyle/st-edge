@@ -24,37 +24,43 @@ TODO.
 
 These instructions are written for a Linux platform. Similar steps may be taken for MacOS or Windows.
 
-Get source
+Get the source from this repository.
 
 	git clone http://github.com/rtyle/st-edge-legrand-rflc.git
+
+All commands documented here are executed from this directory.
+
 	cd st-edge-legrand-rflc
+
+Update all submodules of this repository.
+
 	git submodule update --init --recursive
 
-Install the latest (v0.0.0-pre.34, at the time of this writing) smartthings-cli
+Install the latest (v0.0.0-pre.34, at the time of this writing) smartthings-cli.
 
 	curl -L https://github.com/SmartThingsCommunity/smartthings-cli/releases/download/v0.0.0-pre.34/smartthings-linux.zip | gunzip - | install /dev/stdin smartthings
 
-Copy source dependencies into our package (they cannot be gathered through symbolic links)
+Copy source dependencies into our package (they cannot be gathered through symbolic links).
 
 	cp -r modules/lockbox/lockbox src/
 
-Create package
+Create a SmartThings Edge Driver package from this source.
 
 	./smartthings edge:drivers:package
 
-If needed, create a new distribution channel for this package
+If needed, create a new distribution channel for this package.
 
 	./smartthings edge:channels:create
 
-Assign this package to a distribution channel
+Assign this package to a distribution channel.
 
 	./smartthings edge:channels:assign
 
-Enroll your SmartThings hub in this distribution channel
+Enroll your SmartThings hub in this distribution channel.
 
 	./smartthings edge:channels:enroll
 
-Install this package on your SmartThings hub
+Install this package on your SmartThings hub.
 
 	./smartthings edge:drivers:install
 
@@ -83,7 +89,7 @@ Refreshing the status of all lights associated with an LC7001 controller can be 
 ### Command line lua
 
 SmartThings uses an old version of lua (5.3) that is likely not to be supported by your Linux distribution.
-Build from the source
+Build from the source.
 
 	curl https://www.lua.org/ftp/lua-5.3.6.tar.gz | tar xzf -
 	(cd lua-5.3.6; make linux)
@@ -101,7 +107,7 @@ Build luarocks from our submodule.
 
 #### lua_modules
 
-Install SmartThings supported modules (https://luarocks.org/modules/azdle/st)
+Install SmartThings supported modules (https://luarocks.org/modules/azdle/st).
 
 	./luarocks install cosock
 	./luarocks install dkjson
@@ -109,9 +115,13 @@ Install SmartThings supported modules (https://luarocks.org/modules/azdle/st)
 	./luarocks install luasec
 	./luarocks install luasocket
 
-Luacheck tool
+Install luacheck tool.
 
 	./luarocks install luacheck
+
+Example luacheck usage.
+
+	./lua_modules/bin/luacheck src/init.lua
 
 ### Command Line Interpreter Testing
 
