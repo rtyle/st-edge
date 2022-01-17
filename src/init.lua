@@ -8,9 +8,6 @@ local log           = require "log"
 
 local lc7001 = require "lc7001"
 
--- device manufacturer
-local MANUFACTURER  = "legrand"
-
 -- device models/types, sub_drivers
 local PARENT    = "lc7001"
 local SWITCH    = "switch"
@@ -322,6 +319,21 @@ inventory:discover()
 local driver = Driver("legrand-rflc", {
 
     discovery = function(driver, _, should_continue)
+
+        local function create(device_network_id, model, label, parent_device_id)
+            log.debug("discovery", "create", device_network_id, model, label, parent_device_id)
+            driver:try_create_device({
+                type = "LAN",
+                device_network_id = device_network_id,
+                label = label,
+                profile = model,
+                manufacturer = "legrand",
+                model = model,
+                parent_device_id = parent_device_id,
+            })
+            cosock.socket.sleep(1)
+        end
+
         log.debug("discovery", "start")
         discovery_parent_sender, discovery_parent_receiver = cosock.channel.new()
         inventory:discover()
@@ -330,73 +342,47 @@ local driver = Driver("legrand-rflc", {
                 local parent = parent_by_device_network_id[device_network_id]
                 if not parent then
                     -- try to create parent device for hub
-                    local label = "Legrand Whole House Lighting Controller " .. device_network_id
-                    log.debug("discovery", "create", device_network_id, PARENT, label)
-                    driver:try_create_device({
-                        type = "LAN",
-                        device_network_id = device_network_id,
-                        label = label,
-                        profile = PARENT,
-                        manufacturer = MANUFACTURER,
-                        model = PARENT,
-                    })
-                else
-                    if hub:online() then
-                        -- try to create zone devices reported by hub
-                        -- queue requests from hub thread back to this one
-                        local zone_sender, zone_receiver = cosock.channel.new()
-                        hub:converse(hub:compose_list_zones(), function(_, zones)
-                            local zones_status = hub.Status(zones)
-                            if zones_status.error then
-                                log.error("discovery", "zones", device_network_id, zones_status.text)
-                            else
-                                for _, zone in pairs(zones[hub.ZONE_LIST]) do
-                                    local zid = zone[hub.ZID]
+                    create(device_network_id, PARENT, "Legrand Whole House Lighting Controller " .. device_network_id)
+                elseif hub:online() then
+                    -- try to create zone devices reported by hub
+                    -- queue zones from hub thread back to this one
+                    local zone_sender, zone_receiver = cosock.channel.new()
+                    hub:converse(hub:compose_list_zones(), function(_, zones)
+                        local zones_status = hub.Status(zones)
+                        if zones_status.error then
+                            log.error("discovery", "zones", device_network_id, zones_status.text)
+                        else
+                            for _, zone in pairs(zones[hub.ZONE_LIST]) do
+                                local zid = zone[hub.ZID]
+                                local zone_device_network_id = device_network_id .. ":" .. zid
+                                if not zone_by_device_network_id[zone_device_network_id] then
                                     hub:converse(hub:compose_report_zone_properties(zid), function(_, properties)
                                         local status = hub.Status(properties)
                                         if status.error then
-                                            log.error("discovery", "zone", device_network_id, zid, status.text)
+                                            log.error("discovery", "zone", zone_device_network_id, status.text)
                                         else
                                             local property_list = properties[hub.PROPERTY_LIST]
-                                            local device_type = property_list[hub.DEVICE_TYPE]:lower()
-                                            local name = property_list[hub.NAME]
-                                            local zone_device_network_id = device_network_id .. ":" .. zid
                                             zone_sender:send({
-                                                type = "LAN",
-                                                device_network_id = zone_device_network_id,
-                                                label = name,
-                                                profile = device_type,
-                                                manufacturer = MANUFACTURER,
-                                                model = device_type,
-                                                parent_device_id = parent.device.id,
+                                                zone_device_network_id,
+                                                property_list[hub.DEVICE_TYPE]:lower(),
+                                                property_list[hub.NAME],
+                                                parent.device.id,
                                             })
                                         end
                                     end)
                                 end
                             end
-                        end)
-                        -- handle any queued requests until our patience runs out
-                        while should_continue() do
-                            local zone_ready = cosock.socket.select({zone_receiver}, {}, 2)
-                            if not (zone_ready and should_continue()) then break end
-                            local request = zone_receiver:receive()
-                            local zone_device_network_id = request.device_network_id
-                            if not zone_by_device_network_id[zone_device_network_id] then
-                                log.debug("discovery", "create", zone_device_network_id, request.model, request.label)
-                                driver:try_create_device(request)
-                            end
                         end
+                    end)
+                    while cosock.socket.select({zone_receiver}, {}, 4) and should_continue() do
+                        create(table.unpack(zone_receiver:receive()))
                     end
                 end
             end
-            if should_continue() then
-                local timeout = 8
-                while true do
-                    local parent_ready = cosock.socket.select({discovery_parent_receiver}, {}, timeout)
-                    if not (parent_ready and should_continue()) then break end
-                    log.debug("discovery", "ready", discovery_parent_receiver:receive())
-                    timeout = 0
-                end
+            local timeout = 8
+            while should_continue() and cosock.socket.select({discovery_parent_receiver}, {}, timeout) do
+                log.debug("discovery", "ready", discovery_parent_receiver:receive())
+                timeout = 0
             end
         until not should_continue()
         discovery_parent_sender, discovery_parent_receiver = nil, nil
