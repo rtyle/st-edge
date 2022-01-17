@@ -7,6 +7,7 @@ local Driver        = require "st.driver"
 local log           = require "log"
 
 local lc7001 = require "lc7001"
+local Emitter = require "util.emitter"
 
 -- device models/types, sub_drivers
 local PARENT    = "lc7001"
@@ -29,32 +30,80 @@ local SUBSCRIBE     = "subscribe"
 local authentication = {}
 local inventory = lc7001.Inventory(authentication)
 
-local parent_by_device_network_id = {}
-local discovery_parent_sender, discovery_parent_receiver = nil, nil
+local function super(class)
+    return getmetatable(class).__index
+end
+
+local function new(class, ...)
+    local self = setmetatable({}, class)
+    class:_init(self, ...)
+    return self
+end
+
+-- A Built instance remembers adapters that have been built for devices
+-- and emits device_network_id events with the adapter after it has been added
+local Built = {
+    _init = function(_, self)
+        self.emitter = Emitter()
+        self.adapter = {}
+    end,
+
+    add = function(self, adapter)
+        local device_network_id = adapter.device.device_network_id
+        self.adapter[device_network_id] = adapter
+        self.emitter:emit(device_network_id, adapter)
+    end,
+
+    remove = function(self, device_network_id)
+        self.adapter[device_network_id] = nil
+    end,
+
+    after = function(self, device_network_id, handler)
+        if not device_network_id then
+            handler()
+        else
+            local adapter = self.adapter[device_network_id]
+            if adapter then
+                handler(adapter)
+                return adapter
+            end
+            self.emitter:once(device_network_id, handler)
+        end
+    end,
+
+    flush = function(self)
+        self.emitter = Emitter()
+    end,
+}
+
+Built.__index = Built
+setmetatable(Built, {
+    __call = new
+})
+
+local built = Built()
 
 local function refresh(hub, device_network_id, method)
-    local parent = parent_by_device_network_id[device_network_id]
+    local parent = built.adapter[device_network_id]
     if parent then
         parent:subscribe(hub, method)
         parent:refresh()
     end
 end
 
+local discovery_sender
+
 inventory:on(inventory.EVENT_ADD, function(hub, device_network_id)
     refresh(hub, device_network_id, ON)
-    if (discovery_parent_sender) then
+    if discovery_sender then
         log.debug("discovery", "add", device_network_id)
-        discovery_parent_sender:send(device_network_id)
+        discovery_sender:send(device_network_id)
     end
 end)
 
 inventory:on(inventory.EVENT_REMOVE, function(hub, device_network_id)
     refresh(hub, device_network_id, OFF)
 end)
-
-local function super(class)
-    return getmetatable(class).__index
-end
 
 local Adapter = {
     _init = function(_, self, driver, device)
@@ -133,16 +182,6 @@ local Parent = {
         }
         super(class):_init(self, driver, device)
         authentication[self.device.device_network_id] = lc7001.hash_password(self.device.st_store.preferences.password)
-        parent_by_device_network_id[device.device_network_id] = self
-        if (discovery_parent_sender) then
-            log.debug("discovery", "init", device.device_network_id)
-            discovery_parent_sender:send(device.device_network_id)
-        end
-    end,
-
-    removed = function(self)
-        parent_by_device_network_id[self.device.device_network_id] = nil
-        Adapter.removed(self)
     end,
 
     info_changed = function(self, event, _)
@@ -177,8 +216,6 @@ local Parent = {
     },
 }
 
-local zone_by_device_network_id = {}
-
 local Switch = {
     _init = function(class, self, driver, device)
         local it = device.device_network_id:gmatch("%x+")
@@ -200,12 +237,6 @@ local Switch = {
             end,
         }
         super(class):_init(self, driver, device)
-        zone_by_device_network_id[device.device_network_id] = self
-    end,
-
-    removed = function(self)
-        zone_by_device_network_id[self.device.device_network_id] = nil
-        Adapter.removed(self)
     end,
 
     hub = function(self)
@@ -285,12 +316,6 @@ local Dimmer = {
     },
 }
 
-local function new(class, ...)
-    local self = setmetatable({}, class)
-    class:_init(self, ...)
-    return self
-end
-
 Adapter.__index = Adapter
 setmetatable(Adapter, {
     __call = new
@@ -320,83 +345,108 @@ local driver = Driver("legrand-rflc", {
 
     discovery = function(driver, _, should_continue)
 
-        local function create(device_network_id, model, label, parent_device_id)
-            log.debug("discovery", "create", device_network_id, model, label, parent_device_id)
-            driver:try_create_device({
-                type = "LAN",
-                device_network_id = device_network_id,
-                label = label,
-                profile = model,
-                manufacturer = "legrand",
-                model = model,
-                parent_device_id = parent_device_id,
-            })
-            cosock.socket.sleep(1)
-        end
+        -- spawn a build thread that will not try to create another device
+        -- until after the last one has been built.
+        local build_sender, build_receiver = cosock.channel.new()
+        cosock.spawn(function()
+            log.debug("discovery", "start")
+            local last_device_network_id
+            while cosock.socket.select({build_receiver}) do
+                local device_network_id, model, label, parent_device_id = table.unpack(build_receiver:receive())
+                if not device_network_id then break end
+                built:after(last_device_network_id, function()
+                    log.debug("discovery", "create", device_network_id, model, label, parent_device_id)
+                    driver:try_create_device{
+                        type = "LAN",
+                        device_network_id = device_network_id,
+                        label = label,
+                        profile = model,
+                        manufacturer = "legrand",
+                        model = model,
+                        parent_device_id = parent_device_id,
+                    }
+                end)
+                last_device_network_id = device_network_id
+            end
+            built:flush()
+            log.debug("discovery", "stop")
+        end, "build")
 
-        log.debug("discovery", "start")
-        discovery_parent_sender, discovery_parent_receiver = cosock.channel.new()
         inventory:discover()
+
+        local discovery_receiver
+        discovery_sender, discovery_receiver = cosock.channel.new()
+        local pending = {}
         repeat
             for device_network_id, hub in pairs(inventory.hub) do
-                local parent = parent_by_device_network_id[device_network_id]
-                if not parent then
-                    -- try to create parent device for hub
-                    create(device_network_id, PARENT, "Legrand Whole House Lighting Controller " .. device_network_id)
-                elseif hub:online() then
-                    -- try to create zone devices reported by hub
-                    -- queue zones from hub thread back to this one
-                    local zone_sender, zone_receiver = cosock.channel.new()
-                    hub:converse(hub:compose_list_zones(), function(_, zones)
-                        local zones_status = hub.Status(zones)
-                        if zones_status.error then
-                            log.error("discovery", "zones", device_network_id, zones_status.text)
-                        else
-                            for _, zone in pairs(zones[hub.ZONE_LIST]) do
-                                local zid = zone[hub.ZID]
-                                local zone_device_network_id = device_network_id .. ":" .. zid
-                                if not zone_by_device_network_id[zone_device_network_id] then
-                                    hub:converse(hub:compose_report_zone_properties(zid), function(_, properties)
-                                        local status = hub.Status(properties)
-                                        if status.error then
-                                            log.error("discovery", "zone", zone_device_network_id, status.text)
-                                        else
-                                            local property_list = properties[hub.PROPERTY_LIST]
-                                            zone_sender:send({
-                                                zone_device_network_id,
-                                                property_list[hub.DEVICE_TYPE]:lower(),
-                                                property_list[hub.NAME],
-                                                parent.device.id,
-                                            })
-                                        end
-                                    end)
+                if not built:after(device_network_id, function(parent)
+                    if hub:online() then
+                        -- build zone devices reported by parent hub
+                        hub:converse(hub:compose_list_zones(), function(_, zones)
+                            local zones_status = hub.Status(zones)
+                            if zones_status.error then
+                                log.error("discovery", "zones", device_network_id, zones_status.text)
+                            else
+                                for _, zone in pairs(zones[hub.ZONE_LIST]) do
+                                    local zid = zone[hub.ZID]
+                                    local zone_device_network_id = device_network_id .. ":" .. zid
+                                    if not (built.adapter[zone_device_network_id]
+                                            or pending[zone_device_network_id]) then
+                                        hub:converse(hub:compose_report_zone_properties(zid), function(_, properties)
+                                            local status = hub.Status(properties)
+                                            if status.error then
+                                                log.error("discovery", "zone", zone_device_network_id, status.text)
+                                            else
+                                                local property_list = properties[hub.PROPERTY_LIST]
+                                                pending[zone_device_network_id] = true
+                                                build_sender:send{
+                                                    zone_device_network_id,
+                                                    property_list[hub.DEVICE_TYPE]:lower(),
+                                                    property_list[hub.NAME],
+                                                    parent.device.id,
+                                                }
+                                            end
+                                        end)
+                                    end
                                 end
                             end
-                        end
-                    end)
-                    while cosock.socket.select({zone_receiver}, {}, 4) and should_continue() do
-                        create(table.unpack(zone_receiver:receive()))
+                        end)
+                    end
+                end) then
+                    -- build parent device for zones
+                    if not pending[device_network_id] then
+                        pending[device_network_id] = true
+                        build_sender:send{
+                            device_network_id,
+                            PARENT,
+                            "Legrand Whole House Lighting Controller " .. device_network_id,
+                        }
                     end
                 end
             end
             local timeout = 8
-            while should_continue() and cosock.socket.select({discovery_parent_receiver}, {}, timeout) do
-                log.debug("discovery", "ready", discovery_parent_receiver:receive())
+            while should_continue() and cosock.socket.select({discovery_receiver}, {}, timeout) do
+                log.debug("discovery", "ready", discovery_receiver:receive())
                 timeout = 0
             end
         until not should_continue()
-        discovery_parent_sender, discovery_parent_receiver = nil, nil
-        log.debug("discovery", "stop")
+        discovery_sender = nil
+        build_sender:send{}
     end,
 
-    lifecycle_handlers = {removed = function(_, device) Adapter.call(device, REMOVED) end},
+    lifecycle_handlers = {
+        removed = function(_, device)
+            Adapter.call(device, REMOVED)
+            built:remove(device.device_network_id)
+        end,
+    },
 
     sub_drivers = {
         {
             NAME = PARENT,
             can_handle = function(_, _, device) return device.st_store.model == PARENT end,
             lifecycle_handlers = {
-                init = function(driver, device) Parent(driver, device) end,
+                init = function(driver, device) built:add(Parent(driver, device)) end,
                 infoChanged = function(_, device, event, args) Adapter.call(device, INFO_CHANGED, event, args) end,
             },
             capability_handlers = Parent.capability_handlers,
@@ -404,13 +454,13 @@ local driver = Driver("legrand-rflc", {
         {
             NAME = SWITCH,
             can_handle = function(_, _, device) return device.st_store.model == SWITCH end,
-            lifecycle_handlers = {init = function(driver, device) Switch(driver, device) end},
+            lifecycle_handlers = {init = function(driver, device) built:add(Switch(driver, device)) end},
             capability_handlers = Switch.capability_handlers,
         },
         {
             NAME = DIMMER,
             can_handle = function(_, _, device) return device.st_store.model == DIMMER end,
-            lifecycle_handlers = {init = function(driver, device) Dimmer(driver, device) end},
+            lifecycle_handlers = {init = function(driver, device) built:add(Dimmer(driver, device)) end},
             capability_handlers = Dimmer.capability_handlers,
         },
     },
