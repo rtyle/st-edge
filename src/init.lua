@@ -135,10 +135,10 @@ local Adapter = {
         if adapter then
             adapter[method](adapter, ...)
         else
-            -- after discovery, sometimes device is added without being init'ed
-            -- (why?!) and we will end up here (instead of aborting).
-            -- rebooting the hub seems to fix things.
-            log.error(method, device.device_network_id, device.st_store.label)
+            -- we will end up here after SmartThings hub reboot
+            -- when the parent adapter (for the hub) is refreshed (on init)
+            -- but its child zone adapters have not yet been created. 
+            log.warn(method, device.device_network_id, device.st_store.label)
         end
     end,
 
