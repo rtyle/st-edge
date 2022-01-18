@@ -6,17 +6,16 @@ local cosock        = require "cosock"
 local Driver        = require "st.driver"
 local log           = require "log"
 
-local lc7001 = require "lc7001"
-local Emitter = require "util.emitter"
+local lc7001        = require "lc7001"
 
 -- device models/types, sub_drivers
-local PARENT    = "lc7001"
-local SWITCH    = "switch"
-local DIMMER    = "dimmer"
+local PARENT        = "lc7001"
+local SWITCH        = "switch"
+local DIMMER        = "dimmer"
 
 -- subscription methods
-local ON        = "on"
-local OFF       = "off"
+local ON            = "on"
+local OFF           = "off"
 
 -- Adapter callbacks from device
 local ADAPTER       = "adapter"
@@ -40,18 +39,37 @@ local function new(class, ...)
     return self
 end
 
--- A Built instance remembers adapters that have been built for devices
--- and emits device_network_id events with the adapter after it has been added
-local Built = {
-    _init = function(_, self)
-        self.emitter = Emitter()
-        self.adapter = {}
+local function classify(class, super_class)
+    class.__index = class
+    setmetatable(class, {
+        __index = super_class,
+        __call = new
+    })
+end
+
+-- built remembers adapters (by device_network_id) that have been built for devices
+-- and emits events with the adapter after it has been added
+local built = {
+    adapter = {},
+
+    _handler = {},
+
+    _emit = function(self, device_network_id, adapter)
+        local handler = self._handler[device_network_id]
+        if handler then
+            handler(adapter)
+            self._handler[device_network_id] = nil
+        end
+    end,
+
+    _once = function(self, device_network_id, handler)
+        self._handler[device_network_id] = handler
     end,
 
     add = function(self, adapter)
         local device_network_id = adapter.device.device_network_id
         self.adapter[device_network_id] = adapter
-        self.emitter:emit(device_network_id, adapter)
+        self:_emit(device_network_id, adapter)
     end,
 
     remove = function(self, device_network_id)
@@ -67,21 +85,14 @@ local Built = {
                 handler(adapter)
                 return adapter
             end
-            self.emitter:once(device_network_id, handler)
+            self:_once(device_network_id, handler)
         end
     end,
 
     flush = function(self)
-        self.emitter = Emitter()
+        self._handler = {}
     end,
 }
-
-Built.__index = Built
-setmetatable(Built, {
-    __call = new
-})
-
-local built = Built()
 
 local function refresh(hub, device_network_id, method)
     local parent = built.adapter[device_network_id]
@@ -137,7 +148,7 @@ local Adapter = {
         else
             -- we will end up here after SmartThings hub reboot
             -- when the parent adapter (for the hub) is refreshed (on init)
-            -- but its child zone adapters have not yet been created. 
+            -- but its child zone adapters have not yet been created.
             log.warn(method, device.device_network_id, device.st_store.label)
         end
     end,
@@ -163,7 +174,6 @@ local Adapter = {
         end
     end,
 }
-
 -- Adapter subclasses cannot extend its capability_handlers by lua inheritance
 -- but can copy entries
 Adapter.capability_handlers = {
@@ -173,6 +183,7 @@ Adapter.capability_handlers = {
         end,
     },
 }
+classify(Adapter)
 
 local Parent = {
     _init = function(class, self, driver, device)
@@ -215,6 +226,7 @@ local Parent = {
         [capabilities.refresh.ID] = Adapter.capability_handlers[capabilities.refresh.ID],
     },
 }
+classify(Parent, Adapter)
 
 local Switch = {
     _init = function(class, self, driver, device)
@@ -286,6 +298,7 @@ local Switch = {
         },
     },
 }
+classify(Switch, Adapter)
 
 local Dimmer = {
     emit = function(self, hub, properties)
@@ -315,29 +328,7 @@ local Dimmer = {
         },
     },
 }
-
-Adapter.__index = Adapter
-setmetatable(Adapter, {
-    __call = new
-})
-
-Parent.__index = Parent
-setmetatable(Parent, {
-    __index = Adapter,
-    __call = new
-})
-
-Switch.__index = Switch
-setmetatable(Switch, {
-    __index = Adapter,
-    __call = new
-})
-
-Dimmer.__index = Dimmer
-setmetatable(Dimmer, {
-    __index = Switch,
-    __call = new
-})
+classify(Dimmer, Switch)
 
 inventory:discover()
 
