@@ -26,7 +26,7 @@ These instructions are written for a Linux platform. Similar steps may be taken 
 
 Get the source from this repository.
 
-	git clone http://github.com/rtyle/st-edge-legrand-rflc.git
+	git clone https://github.com/rtyle/st-edge-legrand-rflc.git
 
 All commands documented here are executed from this directory.
 
@@ -80,7 +80,7 @@ Use the SmartThings App to change the Lighting Control System Password on the Se
 The password here and in the Legrand Lighting Control App must match.
 
 Expect a bridge device to be created in SmartThings for each LC7001 controller
-and a device with Switch (and possibly SwitchLevel) capabilities for each light/dimmer.
+and a device with Switch (and possibly SwitchLevel) capabilities for each light switch (and dimmer).
 Control the lights from SmartThings in the expected way, including refreshing their status with a swipe on their page.
 Refreshing the status of all lights associated with an LC7001 controller can be done by swiping on its page.
 
