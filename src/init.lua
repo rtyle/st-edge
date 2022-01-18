@@ -335,39 +335,33 @@ inventory:discover()
 local driver = Driver("legrand-rflc", {
 
     discovery = function(driver, _, should_continue)
-
-        -- spawn a build thread that will not try to create another device
-        -- until after the last one has been built.
-        local build_sender, build_receiver = cosock.channel.new()
-        cosock.spawn(function()
-            log.debug("discovery", "start")
-            local last_device_network_id
-            while cosock.socket.select({build_receiver}) do
-                local device_network_id, model, label, parent_device_id = table.unpack(build_receiver:receive())
-                if not device_network_id then break end
-                built:after(last_device_network_id, function()
-                    log.debug("discovery", "create", device_network_id, model, label, parent_device_id)
-                    driver:try_create_device{
-                        type = "LAN",
-                        device_network_id = device_network_id,
-                        label = label,
-                        profile = model,
-                        manufacturer = "legrand",
-                        model = model,
-                        parent_device_id = parent_device_id,
-                    }
-                end)
-                last_device_network_id = device_network_id
-            end
-            built:flush()
-            log.debug("discovery", "stop")
-        end, "build")
+        log.debug("discovery", "start")
 
         inventory:discover()
 
+        local pending = {}
+        local last_device_network_id
+        local function build(device_network_id, model, label, parent_device_id)
+            pending[device_network_id] = true
+            built:after(last_device_network_id, function()
+                -- run immediately if last_device_network_id has already been built;
+                -- otherwise, run immediately after it has been built
+                log.debug("discovery", "create", device_network_id, model, label, parent_device_id)
+                driver:try_create_device{
+                    type = "LAN",
+                    device_network_id = device_network_id,
+                    label = label,
+                    profile = model,
+                    manufacturer = "legrand",
+                    model = model,
+                    parent_device_id = parent_device_id,
+                }
+            end)
+            last_device_network_id = device_network_id
+        end
+
         local discovery_receiver
         discovery_sender, discovery_receiver = cosock.channel.new()
-        local pending = {}
         repeat
             for device_network_id, hub in pairs(inventory.hub) do
                 if not built:after(device_network_id, function(parent)
@@ -389,13 +383,9 @@ local driver = Driver("legrand-rflc", {
                                                 log.error("discovery", "zone", zone_device_network_id, status.text)
                                             else
                                                 local property_list = properties[hub.PROPERTY_LIST]
-                                                pending[zone_device_network_id] = true
-                                                build_sender:send{
-                                                    zone_device_network_id,
-                                                    property_list[hub.DEVICE_TYPE]:lower(),
-                                                    property_list[hub.NAME],
-                                                    parent.device.id,
-                                                }
+                                                local model = property_list[hub.DEVICE_TYPE]:lower()
+                                                local label = property_list[hub.NAME]
+                                                build(zone_device_network_id, model, label, parent.device.id)
                                             end
                                         end)
                                     end
@@ -406,12 +396,8 @@ local driver = Driver("legrand-rflc", {
                 end) then
                     -- build parent device for zones
                     if not pending[device_network_id] then
-                        pending[device_network_id] = true
-                        build_sender:send{
-                            device_network_id,
-                            PARENT,
-                            "Legrand Whole House Lighting Controller " .. device_network_id,
-                        }
+                        local label = "Legrand Whole House Lighting Controller " .. device_network_id
+                        build(device_network_id, PARENT, label)
                     end
                 end
             end
@@ -422,7 +408,9 @@ local driver = Driver("legrand-rflc", {
             end
         until not should_continue()
         discovery_sender = nil
-        build_sender:send{}
+
+        built:flush()
+        log.debug("discovery", "stop")
     end,
 
     lifecycle_handlers = {
