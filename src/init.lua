@@ -8,6 +8,8 @@ local log           = require "log"
 
 local lc7001        = require "lc7001"
 
+local classify      = require "util.classify"
+
 -- device models/types, sub_drivers
 local PARENT        = "lc7001"
 local SWITCH        = "switch"
@@ -28,24 +30,6 @@ local SUBSCRIBE     = "subscribe"
 
 local authentication = {}
 local inventory = lc7001.Inventory(authentication)
-
-local function super(class)
-    return getmetatable(class).__index
-end
-
-local function new(class, ...)
-    local self = setmetatable({}, class)
-    class:_init(self, ...)
-    return self
-end
-
-local function classify(class, super_class)
-    class.__index = class
-    setmetatable(class, {
-        __index = super_class,
-        __call = new
-    })
-end
 
 -- built remembers adapters (by device_network_id) that have been built for devices
 -- and emits events with the adapter after it has been added
@@ -183,7 +167,7 @@ Adapter.capability_handlers = {
         end,
     },
 }
-classify(Adapter)
+classify.single(Adapter)
 
 local Parent = {
     _init = function(class, self, driver, device)
@@ -191,7 +175,7 @@ local Parent = {
             [lc7001.Hub.EVENT_AUTHENTICATED] = function() self:refresh() end,
             [lc7001.Hub.EVENT_DISCONNECTED]  = function() self:refresh() end,
         }
-        super(class):_init(self, driver, device)
+        classify.super(class):_init(self, driver, device)
         authentication[self.device.device_network_id] = lc7001.hash_password(self.device.st_store.preferences.password)
     end,
 
@@ -226,7 +210,7 @@ local Parent = {
         [capabilities.refresh.ID] = Adapter.capability_handlers[capabilities.refresh.ID],
     },
 }
-classify(Parent, Adapter)
+classify.single(Parent, Adapter)
 
 local Switch = {
     _init = function(class, self, driver, device)
@@ -248,7 +232,7 @@ local Switch = {
                 self:refresh()
             end,
         }
-        super(class):_init(self, driver, device)
+        classify.super(class):_init(self, driver, device)
     end,
 
     hub = function(self)
@@ -298,7 +282,7 @@ local Switch = {
         },
     },
 }
-classify(Switch, Adapter)
+classify.single(Switch, Adapter)
 
 local Dimmer = {
     emit = function(self, hub, properties)
@@ -328,7 +312,7 @@ local Dimmer = {
         },
     },
 }
-classify(Dimmer, Switch)
+classify.single(Dimmer, Switch)
 
 inventory:discover()
 

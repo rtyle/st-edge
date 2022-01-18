@@ -1,7 +1,9 @@
+local classify = require "util.classify"
+
 -- Reader of spooled chunks from given read function.
 local Reader = {
 
-    _init = function(self, read)
+    _init = function(_, self, read)
         self._read = read
         self._queue = {}
     end,
@@ -73,13 +75,6 @@ local Reader = {
     end,
 }
 
-Reader.__index = Reader
-setmetatable(Reader, {
-    __call = function(class, ...)
-        local self = setmetatable({}, class)
-        self:_init(...)
-        return self
-    end
-})
+classify.single(Reader)
 
 return Reader

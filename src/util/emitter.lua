@@ -1,3 +1,5 @@
+local classify = require "util.classify"
+
 -- Event emitter pattern implementation.
 local Emitter = {
 
@@ -60,20 +62,7 @@ local Emitter = {
     end,
 }
 
-local function new(class, ...)
-    local self = setmetatable({}, class)
-    class:_init(self, ...)
-    return self
-end
-
-Emitter.__index = Emitter
-setmetatable(Emitter, {
-    __call = new
-})
-
-Emitter.Once.__index = Emitter.Once
-setmetatable(Emitter.Once, {
-    __call = new
-})
+classify.single(Emitter)
+classify.single(Emitter.Once)
 
 return Emitter

@@ -13,19 +13,8 @@ local AES128Cipher  = require "lockbox.cipher.aes128"
 
 local Emitter       = require "util.emitter"
 local Reader        = require "util.reader"
+local classify      = require "util.classify"
 local resolve       = require "util.resolve"
-
-local function super(class)
-    return getmetatable(class).__index
-end
-
-local function supers(class)
-    return coroutine.wrap(function()
-        for _, _super in ipairs(super(class)()) do
-            coroutine.yield(_super)
-        end
-    end)
-end
 
 local function starts_with(whole, part)
     return part == whole:sub(1, #part)
@@ -52,6 +41,8 @@ local function json_decode(encoded)
         end
     end)
 end
+
+local Hub
 
 local M = {
 
@@ -236,7 +227,7 @@ local M = {
     Sender = {
         _init = function(class, self)
             self.Sender = class
-            super(class):_init(self)
+            classify.super(class):_init(self)
             self._send_id = 0 -- id of last send
             self._writer = nil
         end,
@@ -295,7 +286,7 @@ local M = {
 
         _init = function(class, self)
             self.Receiver = class
-            super(class):_init(self)
+            classify.super(class):_init(self)
             self._reader = nil
         end,
 
@@ -347,7 +338,7 @@ local M = {
 
         _init = function(class, self)
             self.ReceiverEmitter = class
-            for _super in supers(class) do
+            for _super in classify.supers(class) do
                 _super:_init(self)
             end
             self._emit_id = 1   -- id of next emit
@@ -400,7 +391,7 @@ local M = {
 
         _init = function(class, self, authentication)
             self.Authenticator = class
-            super(class):_init(self)
+            classify.super(class):_init(self)
             self._authentication = authentication
         end,
 
@@ -529,7 +520,7 @@ local M = {
 
         _init = function(class, self, host, port, authentication)
             self.Connector = class
-            super(class):_init(self, authentication)
+            classify.super(class):_init(self, authentication)
             self._host = host or self.HOST
             self._port = port or self.PORT
         end,
@@ -628,10 +619,9 @@ local M = {
         -- default arguments
         DISCOVER_BACKOFF_CAP = 8,
 
-        _init = function(class, self, authentication, Hub)
-            super(class):_init(self)
+        _init = function(class, self, authentication)
+            classify.super(class):_init(self)
             self._authentication = authentication
-            self.Hub = Hub
 
             -- inventory
             self.hub = {}       -- by hub:hub_id()
@@ -704,8 +694,8 @@ local M = {
                 cosock.spawn(function()
                     local backoff = 0
                     while true do
-                        resolve(self.Hub.HOST, function(host)
-                            local hub = self.Hub(host, nil, self._authentication)
+                        resolve(Hub.HOST, function(host)
+                            local hub = Hub(host, nil, self._authentication)
                             hub._rediscover = true
                             self:ask(hub, loop_backoff_cap, read_timeout, true)
                         end)
@@ -724,87 +714,17 @@ local M = {
     },
 }
 
-local function new(class, ...)
-    local self = setmetatable({}, class)
-    class:_init(self, ...)
-    return self
-end
+Hub = M.Hub
 
-local function join(_supers)
-    return function(class, key)
-        if nil == key then
-            return _supers
-        end
-        for _, _super in ipairs(_supers) do
-            local value = _super[key]
-            if nil ~= value then
-                class[key] = value
-                return value
-            end
-        end
-    end
-end
-
-M.Composer.__index = M.Composer
-setmetatable(M.Composer, {
-    __call = new
-})
-
-M.Sender.__index = M.Sender
-setmetatable(M.Sender, {
-    __index = M.Composer,
-    __call = new
-})
-
-M.Receiver.__index = M.Receiver
-setmetatable(M.Receiver, {
-    __index = M.Sender,
-    __call = new
-})
-
-M.Receiver.Status.__index = M.Receiver.Status
-setmetatable(M.Receiver.Status, {
-    __call = new
-})
-
-M.ReceiverEmitter.__index = M.ReceiverEmitter
-setmetatable(M.ReceiverEmitter, {
-    __index = join{M.Receiver, Emitter},
-    __call = new
-})
-
-M.Authenticator.__index = M.Authenticator
-setmetatable(M.Authenticator, {
-    __index = M.ReceiverEmitter,
-    __call = new
-})
-
-M.Hub.__index = M.Hub
-setmetatable(M.Hub, {
-    __index = M.Authenticator,
-    __call = new
-})
-
-local function _error(class, ...)
-    error(setmetatable({...}, class))
-end
-
-M.Hub.Break.__index = M.Hub.Break
-setmetatable(M.Hub.Break, {
-    __call = _error
-})
-
-M.Hub.Continue.__index = M.Hub.Continue
-setmetatable(M.Hub.Continue, {
-    __call = _error
-})
-
-M.Inventory.__index = M.Inventory
-setmetatable(M.Inventory, {
-    __index = Emitter,
-    __call = function(class, ...)
-	    return new(class, ..., M.Hub)
-    end
-})
+classify.single(M.Composer)
+classify.single(M.Sender, M.Composer)
+classify.single(M.Receiver, M.Sender)
+classify.single(M.Receiver.Status)
+classify.multiple(M.ReceiverEmitter, M.Receiver, Emitter)
+classify.single(M.Authenticator, M.ReceiverEmitter)
+classify.single(M.Hub, M.Authenticator)
+classify.error(M.Hub.Break)
+classify.error(M.Hub.Continue)
+classify.single(M.Inventory, Emitter)
 
 return M
