@@ -4,7 +4,7 @@ Support for the Object-Oriented Programming concepts discussed here
 https://www.lua.org/pil/contents.html#16
 ]]--
 
--- new implements the __call metamethod (Class()) of a class.
+-- new implements the __call (nullary) metamethod of a class.
 -- it creates an empty object ({})
 -- assigns class as the metatable for this object,
 -- and initializes it (calls the class:_init method).
