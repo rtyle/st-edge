@@ -61,7 +61,7 @@ return {
         return getmetatable(self)
     end,
 
-    -- adapt class to implement (optional) single-inheritance from a super_class.
+    -- adapt class to implement single-inheritance from an optional super_class.
     -- return the adaptation.
     single = function(class, super_class)
         class.__index = class
