@@ -4,10 +4,10 @@ Support for the Object-Oriented Programming concepts discussed here
 https://www.lua.org/pil/contents.html#16
 ]]--
 
--- new implements the __call metamethod (Class()) of a class
+-- new implements the __call metamethod (Class()) of a class.
 -- it creates an empty object ({})
 -- assigns class as the metatable for this object,
--- and initializes (calls the class:_init method) it.
+-- and initializes it (calls the class:_init method).
 -- the object is returned.
 local function new(class, ...)
     local self = setmetatable({}, class)
