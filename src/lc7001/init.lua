@@ -52,7 +52,7 @@ local M = {
     end,
 
     -- Composer of messages.
-    Composer = {
+    Composer = classify.single({
         -- message keys
         APP_CONTEXT_ID  = "AppContextId",   -- echoed in reply
         ID              = "ID",             -- echoed in reply
@@ -221,7 +221,7 @@ local M = {
                 [self.PROPERTY_LIST] = {[self.KEYS] = self._encrypt(old, old) .. self._encrypt(old, new)}
             }
         end,
-    },
+    }),
 
     -- Sender of messages.
     Sender = {
@@ -254,7 +254,7 @@ local M = {
     Receiver = {
 
         -- Status has status, error, code and text values derived from a message.
-        Status = {
+        Status = classify.single({
             -- status is STATUS (or STATUS_ERROR)
             -- error is true if status is not STATUS_SUCCESS,
             -- code is ERROR_CODE value (or 0)
@@ -282,7 +282,7 @@ local M = {
                     error("RFLC error: " .. self.text)
                 end
             end,
-        },
+        }),
 
         _init = function(class, self)
             self.Receiver = class
@@ -505,8 +505,8 @@ local M = {
     Hub = {
 
         -- for loop control, from same thread
-        Break       = {},
-        Continue    = {},
+        Break       = classify.error({}),
+        Continue    = classify.error({}),
 
         -- events emitted
         EVENT_DISCONNECTED  = "disconnected",
@@ -579,10 +579,10 @@ local M = {
                     elseif "closed" == session_error then
                         backoff = 0
                         log.warn(session_error)
-                    elseif self.Break == getmetatable(session_error) then
+                    elseif self.Break == classify.class(session_error) then
                         log.debug(table.unpack(session_error))
                         break
-                    elseif self.Continue == getmetatable(session_error) then
+                    elseif self.Continue == classify.class(session_error) then
                         log.debug(table.unpack(session_error))
                         -- continue
                     else
@@ -610,7 +610,7 @@ local M = {
     },
 
     -- Manage an inventory of identified Hubs.
-    Inventory = {
+    Inventory = classify.single({
 
         -- events emitted
         EVENT_ADD       = "add",
@@ -711,20 +711,15 @@ local M = {
                 end, "lc7001.Inventory.discover")
             end
         end,
-    },
+    }, Emitter),
 }
 
 Hub = M.Hub
 
-classify.single(M.Composer)
 classify.single(M.Sender, M.Composer)
 classify.single(M.Receiver, M.Sender)
-classify.single(M.Receiver.Status)
 classify.multiple(M.ReceiverEmitter, M.Receiver, Emitter)
 classify.single(M.Authenticator, M.ReceiverEmitter)
 classify.single(M.Hub, M.Authenticator)
-classify.error(M.Hub.Break)
-classify.error(M.Hub.Continue)
-classify.single(M.Inventory, Emitter)
 
 return M

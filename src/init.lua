@@ -100,7 +100,7 @@ inventory:on(inventory.EVENT_REMOVE, function(hub, device_network_id)
     refresh(hub, device_network_id, OFF)
 end)
 
-local Adapter = {
+local Adapter = classify.single({
     _init = function(_, self, driver, device)
         log.debug("init", device.device_network_id, device.st_store.label)
         self.driver = driver
@@ -157,7 +157,7 @@ local Adapter = {
             self.device:offline()
         end
     end,
-}
+})
 -- Adapter subclasses cannot extend its capability_handlers by lua inheritance
 -- but can copy entries
 Adapter.capability_handlers = {
@@ -167,9 +167,8 @@ Adapter.capability_handlers = {
         end,
     },
 }
-classify.single(Adapter)
 
-local Parent = {
+local Parent = classify.single({
     _init = function(class, self, driver, device)
         self.subscription = {
             [lc7001.Hub.EVENT_AUTHENTICATED] = function() self:refresh() end,
@@ -209,10 +208,9 @@ local Parent = {
     capability_handlers = {
         [capabilities.refresh.ID] = Adapter.capability_handlers[capabilities.refresh.ID],
     },
-}
-classify.single(Parent, Adapter)
+}, Adapter)
 
-local Switch = {
+local Switch = classify.single({
     _init = function(class, self, driver, device)
         local it = device.device_network_id:gmatch("%x+")
         self.parent_device_network_id, self.zid = it(), tonumber(it())
@@ -281,10 +279,9 @@ local Switch = {
             end,
         },
     },
-}
-classify.single(Switch, Adapter)
+}, Adapter)
 
-local Dimmer = {
+local Dimmer = classify.single({
     emit = function(self, hub, properties)
         local property_list = Switch.emit(self, hub, properties)
         if property_list then
@@ -311,8 +308,7 @@ local Dimmer = {
             end,
         },
     },
-}
-classify.single(Dimmer, Switch)
+}, Switch)
 
 inventory:discover()
 

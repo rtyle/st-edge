@@ -1,10 +1,10 @@
 local classify = require "util.classify"
 
 -- Event emitter pattern implementation.
-local Emitter = {
+return classify.single({
 
     -- Once forwards an emission once.
-   Once = {
+   Once = classify.single({
         EVENT_NIL = {},
 
         _init = function(_, self, emitter, event, handler)
@@ -20,7 +20,7 @@ local Emitter = {
                 handler(...)
             end
         end,
-    },
+    }),
 
     _init = function(class, self)
         self.Emitter = class
@@ -60,9 +60,4 @@ local Emitter = {
             end
         end
     end,
-}
-
-classify.single(Emitter)
-classify.single(Emitter.Once)
-
-return Emitter
+})
