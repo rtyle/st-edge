@@ -658,9 +658,9 @@ local M = {
                 self.controller[controller_id] = nil
                 log.debug(self.EVENT_REMOVE, address, controller_id)
                 self:emit(self.EVENT_REMOVE, controller, controller_id)
-                if controller._rediscover then
-                    self._discover_sender:send(0)
-                end
+            end
+            if controller._rediscover then
+                self._discover_sender:send(0)
             end
         end,
 
@@ -676,8 +676,10 @@ local M = {
                     -- its entry ages out of the system's ARP cache.
                     -- we will break out of (and stop) the new_controller.
                     -- when it is _remove'd from our inventory, we will notice that
-                    -- we marked it as a duplicate and, if it was added by our discover method/thread,
-                    -- we will notify it to try to rediscover it immediately.
+                    -- we marked it as a _dup to prevent the old_controller from being removed
+                    -- and EVENT_REMOVE from being emitted.
+                    -- our discover method/thread will mark a Controller it creates with _rediscover
+                    -- and _remove will tell it to immediately try to rediscover it.
                     -- this behavior will continue until the old_controller fails, stops
                     -- and the old_controller is removed from our inventory.
                     new_controller._dup = true
