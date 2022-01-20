@@ -677,7 +677,7 @@ local M = {
                     -- we will break out of (and stop) the new_controller.
                     -- when it is _remove'd from our inventory, we will notice that
                     -- we marked it as a _dup to prevent the old_controller from being removed
-                    -- and EVENT_REMOVE from being emitted.
+                    -- from our inventory and EVENT_REMOVE from being emitted.
                     -- our discover method/thread will mark a Controller it creates with _rediscover
                     -- and _remove will tell it to immediately try to rediscover it.
                     -- this behavior will continue until the old_controller fails, stops
