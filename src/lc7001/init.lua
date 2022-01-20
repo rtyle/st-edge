@@ -1,3 +1,5 @@
+-- vim: ts=4:sw=4:expandtab
+
 local cosock        = require "cosock"
 local json          = require "dkjson"
 local log           = require "log"
@@ -42,7 +44,7 @@ local function json_decode(encoded)
     end)
 end
 
-local Hub
+local Controller
 
 local M = {
 
@@ -395,13 +397,13 @@ local M = {
             self._authentication = authentication
         end,
 
-        _identified = function(self, hub_id)
-            self._hub_id = hub_id:lower()
-            self:emit(self.EVENT_IDENTIFIED, self, self._hub_id)
+        _identified = function(self, controller_id)
+            self._controller_id = controller_id:lower()
+            self:emit(self.EVENT_IDENTIFIED, self, self._controller_id)
         end,
 
-        hub_id = function(self)
-            return self._hub_id
+        controller_id = function(self)
+            return self._controller_id
         end,
 
         _authenticated = function(self)
@@ -416,12 +418,12 @@ local M = {
 
         _get_authentication = function(self)
             if self._authentication then
-                local authentication = self._authentication[self._hub_id]
+                local authentication = self._authentication[self._controller_id]
                 if nil ~= authentication then
                     return authentication
                 end
             end
-            self.Continue("noauth", self:name(), self._hub_id)
+            self.Continue("noauth", self:address(), self._controller_id)
         end,
 
         _send_challenge_response = function(self, authentication, challenge)
@@ -447,9 +449,9 @@ local M = {
             local challenge = self._reader:read_until(" "):sub(1, -2)
             log.debug("\t\t>\t", challenge)
             -- 12 byte MAC address
-            local hub_id = self._reader:read_exactly(12)
-            log.debug("\t\t>\t", hub_id)
-            self:_identified(hub_id)
+            local controller_id = self._reader:read_exactly(12)
+            log.debug("\t\t>\t", controller_id)
+            self:_identified(controller_id)
             self:_send_challenge_response(self:_get_authentication(), Array.toString(Array.fromHex(challenge)))
         end,
 
@@ -458,7 +460,7 @@ local M = {
         end,
 
         _receive_security_hello_invalid = function(self)
-            self.Continue("unauth", self:name(), self._hub_id)
+            self.Continue("unauth", self:address(), self._controller_id)
         end,
 
         _receive_security_mac = function(self, message)
@@ -501,8 +503,8 @@ local M = {
         end,
     },
 
-    -- A Hub is an Authenticator that loops over connections/sessions.
-    Hub = {
+    -- A Controller is an Authenticator that loops over connections/sessions.
+    Controller = {
 
         -- for loop control, from same thread
         Break       = classify.error({}),
@@ -533,7 +535,7 @@ local M = {
             return self._port
         end,
 
-        name = function(self)
+        address = function(self)
             return self._host .. ":" .. self._port
         end,
 
@@ -609,7 +611,7 @@ local M = {
         end,
     },
 
-    -- Manage an inventory of identified Hubs.
+    -- Manage an inventory of identified Controllers.
     Inventory = classify.single({
 
         -- events emitted
@@ -624,66 +626,66 @@ local M = {
             self._authentication = authentication
 
             -- inventory
-            self.hub = {}       -- by hub:hub_id()
-            self._running = {}  -- by hub:name()
+            self.controller = {}    -- by controller:controller_id()
+            self._running = {}      -- by controller:address()
 
             self._subscription = {
-                [Hub.EVENT_IDENTIFIED]      = function(hub, hub_id)
-                    self:_add(hub, hub_id)
+                [Controller.EVENT_IDENTIFIED]      = function(controller, controller_id)
+                    self:_add(controller, controller_id)
                 end,
-                [Hub.EVENT_STOPPED]         = function(hub)
-                    self:_remove(hub)
+                [Controller.EVENT_STOPPED]         = function(controller)
+                    self:_remove(controller)
                 end,
             }
         end,
 
-        _subscribe = function(self, hub, method)
-            log.debug(method, hub:name(), hub:hub_id())
+        _subscribe = function(self, controller, method)
+            log.debug(method, controller:address(), controller:controller_id())
             for event, handler in pairs(self._subscription) do
-                hub[method](hub, event, handler)
+                controller[method](controller, event, handler)
             end
         end,
 
-        _remove = function(self, hub)
-            self:_subscribe(hub, "off")
-            local name = hub:name()
-            self._running[name] = nil
-            if not hub._dup then
-                local hub_id = hub:hub_id()
-                self.hub[hub_id] = nil
-                log.debug(self.EVENT_REMOVE, name, hub_id)
-                self:emit(self.EVENT_REMOVE, hub, hub_id)
-                if hub._rediscover then
+        _remove = function(self, controller)
+            self:_subscribe(controller, "off")
+            local address = controller:address()
+            self._running[address] = nil
+            if not controller._dup then
+                local controller_id = controller:controller_id()
+                self.controller[controller_id] = nil
+                log.debug(self.EVENT_REMOVE, address, controller_id)
+                self:emit(self.EVENT_REMOVE, controller, controller_id)
+                if controller._rediscover then
                     self._discover_sender:send(0)
                 end
             end
         end,
 
-        _add = function(self, new_hub, new_hub_id)
-            local old_hub = self.hub[new_hub_id]
-            if new_hub ~= old_hub then
-                if old_hub then
-                    new_hub._dup = true
-                    Hub.Break("dup", new_hub:name(), new_hub_id)
+        _add = function(self, new_controller, new_controller_id)
+            local old_controller = self.controller[new_controller_id]
+            if new_controller ~= old_controller then
+                if old_controller then
+                    new_controller._dup = true
+                    Controller.Break("dup", new_controller:address(), new_controller_id)
                 else
-                    self.hub[new_hub_id] = new_hub
-                    log.debug(self.EVENT_ADD, new_hub:name(), new_hub_id)
-                    self:emit(self.EVENT_ADD, new_hub, new_hub_id)
+                    self.controller[new_controller_id] = new_controller
+                    log.debug(self.EVENT_ADD, new_controller:address(), new_controller_id)
+                    self:emit(self.EVENT_ADD, new_controller, new_controller_id)
                 end
             end
         end,
 
-        ask = function(self, hub, loop_backoff_cap, read_timeout, rediscover)
-            local name = hub:name()
-            log.debug("ask", name)
-            if self._running[name] then
-                log.debug("dup", name)
+        ask = function(self, controller, loop_backoff_cap, read_timeout, rediscover)
+            local address = controller:address()
+            log.debug("ask", address)
+            if self._running[address] then
+                log.debug("dup", address)
             else
-                self._running[name] = true
-                self:_subscribe(hub, "on")
+                self._running[address] = true
+                self:_subscribe(controller, "on")
                 cosock.spawn(function()
-                    hub:loop(loop_backoff_cap, read_timeout, rediscover)
-                end, "lc7001.Hub " .. name)
+                    controller:loop(loop_backoff_cap, read_timeout, rediscover)
+                end, "lc7001.Controller " .. address)
             end
         end,
 
@@ -697,10 +699,10 @@ local M = {
                 cosock.spawn(function()
                     local backoff = 0
                     while true do
-                        resolve(Hub.HOST, function(host)
-                            local hub = Hub(host, nil, self._authentication)
-                            hub._rediscover = true
-                            self:ask(hub, loop_backoff_cap, read_timeout, true)
+                        resolve(Controller.HOST, function(host)
+                            local controller = Controller(host, nil, self._authentication)
+                            controller._rediscover = true
+                            self:ask(controller, loop_backoff_cap, read_timeout, true)
                         end)
                         -- rediscover after capped exponential backoff
                         -- or our receiver hears from our sender.
@@ -717,12 +719,12 @@ local M = {
     }, Emitter),
 }
 
-Hub = M.Hub
+Controller = M.Controller
 
 classify.single(M.Sender, M.Composer)
 classify.single(M.Receiver, M.Sender)
 classify.multiple(M.ReceiverEmitter, M.Receiver, Emitter)
 classify.single(M.Authenticator, M.ReceiverEmitter)
-classify.single(M.Hub, M.Authenticator)
+classify.single(M.Controller, M.Authenticator)
 
 return M

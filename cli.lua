@@ -1,15 +1,17 @@
+-- vim: ts=4:sw=4:expandtab
+
 --[[
-Command Line Interpreter to interact with LC7001 hubs.
+Command Line Interpreter to interact with LC7001 controllers.
 
 With no command line arguments,
-interaction is directed only to the LC7001 hub identified as LCM1.local.
-Otherwise, each command line argument should identify a hub
+interaction is directed only to the LC7001 controller identified as LCM1.local.
+Otherwise, each command line argument should identify a controller
 in the form of "password@host" or just "host" (no password).
 
 This code serves as a demonstration of expected lc7001.lua usage.
 
-We use lc7001.Hub which acts as an lc7001.Authenticator
-and then an lc7001.Emitter for each connection/session with the hub.
+We use lc7001.Controller which acts as an lc7001.Authenticator
+and then an lc7001.Emitter for each connection/session with the controller.
 With LUALOG=DEBUG in the environment, the LC7001 messages passed in (>) to us
 and out (<) from us are logged.
 This is a great way to demonstrate the LC7001 behavior.
@@ -18,7 +20,7 @@ We offer an interpreter service on an ephemeral port that one
 can interact indirectly with using a command like "socat".
 Such a command line is suggested on STDOUT when we are started.
 Each interpreter service takes lines from its client,
-composes messages from them and sends them to the currently targeted hub.
+composes messages from them and sends them to the currently targeted controller.
 
 Commands are:
 
@@ -28,7 +30,7 @@ a #         send a SET_SYSTEM_PROPERTIES message with ADD_A_LIGHT True|False
 
 d #         send a DELETE_ZONE message for ZID #
 
-h           target the next hub in rotation (start with first one)
+c           target the next controller in rotation (start with first one)
 
 s           send a LIST_SCENES message
 s *         send a LIST_SCENES then a REPORT_SCENE_PROPERTIES for each
@@ -52,14 +54,14 @@ local authentication = {}
 local inventory = lc7001.Inventory(authentication)
 
 -- cross reference lc7001 inventory chronologically
-local hubs = {}
-inventory:on(inventory.EVENT_ADD, function(hub)
-    table.insert(hubs, hub)
+local controllers = {}
+inventory:on(inventory.EVENT_ADD, function(controller)
+    table.insert(controllers, controller)
 end)
-inventory:on(inventory.EVENT_REMOVE, function(hub)
-    for i, _hub in ipairs(hubs) do
-        if _hub == hub then
-            table.remove(hubs, i)
+inventory:on(inventory.EVENT_REMOVE, function(controller)
+    for i, _controller in ipairs(controllers) do
+        if _controller == controller then
+            table.remove(controllers, i)
             return
         end
     end
@@ -69,11 +71,11 @@ cosock.spawn(function()
     local discover = true
     for _, _arg in ipairs{"0026ec02ff14=........"} do
         if _arg:match("=") then
-            for hub_id, password in _arg:gmatch("(%x+)=(.+)") do
-                authentication[hub_id] = lc7001.hash_password(password)
+            for controller_id, password in _arg:gmatch("(%x+)=(.+)") do
+                authentication[controller_id] = lc7001.hash_password(password)
             end
         else
-            inventory:ask(lc7001.Hub(_arg))
+            inventory:ask(lc7001.Controller(_arg))
             discover = false
         end
     end
@@ -94,32 +96,32 @@ local function tokens(line)
     end)
 end
 
-local function command_scene(hub, token)
+local function command_scene(controller, token)
     local sid = token()
     if sid then
         if "*" == sid then
-            hub:converse(hub:compose_list_scenes(), function(_, list)
-                hub.Status(list):error_if()
-                for _, item in pairs(list[hub.SCENE_LIST]) do
-                    hub:send(hub:compose_report_scene_properties(item[hub.SID]))
+            controller:converse(controller:compose_list_scenes(), function(_, list)
+                controller.Status(list):error_if()
+                for _, item in pairs(list[controller.SCENE_LIST]) do
+                    controller:send(controller:compose_report_scene_properties(item[controller.SID]))
                 end
             end)
         else
-            hub:send(hub:compose_report_scene_properties(tonumber(sid)))
+            controller:send(controller:compose_report_scene_properties(tonumber(sid)))
         end
     else
-        hub:send(hub:compose_list_scenes())
+        controller:send(controller:compose_list_scenes())
     end
 end
 
-local function command_zone(hub, token)
+local function command_zone(controller, token)
     local zid = token()
     if zid then
         if "*" == zid then
-            hub:converse(hub:compose_list_zones(), function(_, list)
-                hub.Status(list):error_if()
-                for _, item in pairs(list[hub.ZONE_LIST]) do
-                    hub:send(hub:compose_report_zone_properties(item[hub.ZID]))
+            controller:converse(controller:compose_list_zones(), function(_, list)
+                controller.Status(list):error_if()
+                for _, item in pairs(list[controller.ZONE_LIST]) do
+                    controller:send(controller:compose_report_zone_properties(item[controller.ZID]))
                 end
             end)
         else
@@ -130,26 +132,26 @@ local function command_zone(hub, token)
                 if qualifier then
                     local number = tonumber(value)
                     if "%" == qualifier then
-                        property_list[hub.POWER_LEVEL] = number
+                        property_list[controller.POWER_LEVEL] = number
                     else
-                        property_list[hub.RAMP_RATE] = number
+                        property_list[controller.RAMP_RATE] = number
                     end
                 else
-                    property_list[hub.POWER] = "0" ~= property
+                    property_list[controller.POWER] = "0" ~= property
                 end
             end
             if nil == next(property_list) then
-                hub:send(hub:compose_report_zone_properties(zid))
+                controller:send(controller:compose_report_zone_properties(zid))
             else
-                hub:send(hub:compose_set_zone_properties(zid, property_list))
+                controller:send(controller:compose_set_zone_properties(zid, property_list))
             end
         end
     else
-        hub:send(hub:compose_list_zones())
+        controller:send(controller:compose_list_zones())
     end
 end
 
-local function command(hub, line)
+local function command(controller, line)
     local token = tokens(line)
     local operation = token()
     if operation then
@@ -160,21 +162,21 @@ local function command(hub, line)
             else
                 enable = true
             end
-            hub:send(hub:compose_set_system_properties({[hub.ADD_A_LIGHT] = enable}))
+            controller:send(controller:compose_set_system_properties({[controller.ADD_A_LIGHT] = enable}))
         elseif starts_with(operation, "d") then
             local zid = token()
             if zid then
-                hub:send(hub:compose_delete_zone(tonumber(zid)))
+                controller:send(controller:compose_delete_zone(tonumber(zid)))
             end
-        elseif starts_with(operation, "h") then
+        elseif starts_with(operation, "c") then
             return true
         elseif starts_with(operation, "s") then
-            command_scene(hub, token)
+            command_scene(controller, token)
         elseif starts_with(operation, "z") then
-            command_zone(hub, token)
+            command_zone(controller, token)
         end
     else
-        hub:send(hub:compose_report_system_properties())
+        controller:send(controller:compose_report_system_properties())
     end
 end
 
@@ -196,7 +198,7 @@ cosock.spawn(function()
         if getpeername_error then error(getpeername_error) end
         cosock.spawn(function()
             local index = 1
-            local last_hub
+            local last_controller
             while true do
                 local _, _, server_select_error = socket.select({server})
                 if server_select_error then error(server_select_error) end
@@ -207,19 +209,19 @@ cosock.spawn(function()
                     end
                     error(receive_error)
                 end
-                local hub = hubs[index]
-                if nil == hub then
+                local controller = controllers[index]
+                if nil == controller then
                     index = 1
-                    hub = hubs[index]
+                    controller = controllers[index]
                 end
-                if last_hub ~= hub then
-                    if hub then
-                        print(hub:name())
+                if last_controller ~= controller then
+                    if controller then
+                        print(controller:address())
                     end
-                    last_hub = hub
+                    last_controller = controller
                 end
-                if hub then
-                    if command(hub, line) then
+                if controller then
+                    if command(controller, line) then
                         index = index + 1
                     end
                 end

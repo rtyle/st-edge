@@ -78,26 +78,26 @@ local built = {
     end,
 }
 
-local function refresh(hub, device_network_id, method)
+local function refresh(controller, device_network_id, method)
     local parent = built.adapter[device_network_id]
     if parent then
-        parent:subscribe(hub, method)
+        parent:subscribe(controller, method)
         parent:refresh()
     end
 end
 
 local discovery_sender
 
-inventory:on(inventory.EVENT_ADD, function(hub, device_network_id)
-    refresh(hub, device_network_id, ON)
+inventory:on(inventory.EVENT_ADD, function(controller, device_network_id)
+    refresh(controller, device_network_id, ON)
     if discovery_sender then
         log.debug("discovery", "add", device_network_id)
         discovery_sender:send(device_network_id)
     end
 end)
 
-inventory:on(inventory.EVENT_REMOVE, function(hub, device_network_id)
-    refresh(hub, device_network_id, OFF)
+inventory:on(inventory.EVENT_REMOVE, function(controller, device_network_id)
+    refresh(controller, device_network_id, OFF)
 end)
 
 local Adapter = classify.single({
@@ -106,18 +106,18 @@ local Adapter = classify.single({
         self.driver = driver
         self.device = device
         device:set_field(ADAPTER, self)
-        local hub = self:hub()
-        if hub then
-            self:subscribe(hub, ON)
+        local controller = self:controller()
+        if controller then
+            self:subscribe(controller, ON)
         end
         self:refresh()
     end,
 
     removed = function(self)
         local device = self.device
-        local hub = self:hub()
-        if hub then
-            self:subscribe(hub, OFF)
+        local controller = self:controller()
+        if controller then
+            self:subscribe(controller, OFF)
         end
         self.device:set_field(ADAPTER, nil)
         self.device = nil
@@ -131,25 +131,25 @@ local Adapter = classify.single({
             adapter[method](adapter, ...)
         else
             -- we will end up here after SmartThings hub reboot
-            -- when the parent adapter (for the hub) is refreshed (on init)
+            -- when the parent adapter (for the controller) is refreshed (on init)
             -- but its child zone adapters have not yet been created.
             log.warn(method, device.device_network_id, device.st_store.label)
         end
     end,
 
-    subscribe = function(self, hub, method)
+    subscribe = function(self, controller, method)
         log.debug(method, self.device.device_network_id, self.device.st_store.label)
         for event, handler in pairs(self.subscription) do
-            hub[method](hub, event, handler)
+            controller[method](controller, event, handler)
         end
     end,
 
     refresh = function(self, method)
         log.debug("refresh", self.device.device_network_id, self.device.st_store.label)
-        local hub = self:hub()
-        if hub and hub:online() then
+        local controller = self:controller()
+        if controller and controller:online() then
             if method then
-                method(hub)
+                method(controller)
             else
                 self.device:online()
             end
@@ -171,8 +171,8 @@ Adapter.capability_handlers = {
 local Parent = classify.single({
     _init = function(class, self, driver, device)
         self.subscription = {
-            [lc7001.Hub.EVENT_AUTHENTICATED] = function() self:refresh() end,
-            [lc7001.Hub.EVENT_DISCONNECTED]  = function() self:refresh() end,
+            [lc7001.Controller.EVENT_AUTHENTICATED] = function() self:refresh() end,
+            [lc7001.Controller.EVENT_DISCONNECTED]  = function() self:refresh() end,
         }
         classify.super(class):_init(self, driver, device)
         authentication[self.device.device_network_id] = lc7001.hash_password(self.device.st_store.preferences.password)
@@ -183,15 +183,15 @@ local Parent = classify.single({
         authentication[self.device.device_network_id] = lc7001.hash_password(self.device.st_store.preferences.password)
     end,
 
-    hub = function(self)
-        return inventory.hub[self.device.device_network_id]
+    controller = function(self)
+        return inventory.controller[self.device.device_network_id]
     end,
 
-    subscribe = function(self, hub, method)
-        Adapter.subscribe(self, hub, method)
+    subscribe = function(self, controller, method)
+        Adapter.subscribe(self, controller, method)
         for _, device in ipairs(self.driver:get_devices()) do
             if device.parent_device_id == self.device.id then
-                Adapter.call(device, SUBSCRIBE, hub, method)
+                Adapter.call(device, SUBSCRIBE, controller, method)
             end
         end
     end,
@@ -215,17 +215,17 @@ local Switch = classify.single({
         local it = device.device_network_id:gmatch("%x+")
         self.parent_device_network_id, self.zid = it(), tonumber(it())
         self.subscription = {
-            [lc7001.Hub.EVENT_REPORT_ZONE_PROPERTIES  .. ":" .. self.zid] = function(hub, properties)
-                self:emit(hub, properties)
+            [lc7001.Controller.EVENT_REPORT_ZONE_PROPERTIES  .. ":" .. self.zid] = function(controller, properties)
+                self:emit(controller, properties)
             end,
-            [lc7001.Hub.EVENT_ZONE_PROPERTIES_CHANGED .. ":" .. self.zid] = function(hub, properties)
-                self:emit(hub, properties)
+            [lc7001.Controller.EVENT_ZONE_PROPERTIES_CHANGED .. ":" .. self.zid] = function(controller, properties)
+                self:emit(controller, properties)
             end,
-            [lc7001.Hub.EVENT_ZONE_DELETED .. ":" .. self.zid] = function()
+            [lc7001.Controller.EVENT_ZONE_DELETED .. ":" .. self.zid] = function()
                 log.warn("deleted", self.parent_device_network_id, self.zid, self.device.st_store.label)
                 self.device:offline()
             end,
-            [lc7001.Hub.EVENT_ZONE_ADDED .. ":" .. self.zid] = function()
+            [lc7001.Controller.EVENT_ZONE_ADDED .. ":" .. self.zid] = function()
                 log.warn("added", self.parent_device_network_id, self.zid, self.device.st_store.label)
                 self:refresh()
             end,
@@ -233,20 +233,20 @@ local Switch = classify.single({
         classify.super(class):_init(self, driver, device)
     end,
 
-    hub = function(self)
-        return inventory.hub[self.parent_device_network_id]
+    controller = function(self)
+        return inventory.controller[self.parent_device_network_id]
     end,
 
-    emit = function(self, hub, properties)
-        local status = hub.Status(properties)
+    emit = function(self, controller, properties)
+        local status = controller.Status(properties)
         if status.error then
             log.error("offline", self.parent_device_network_id, self.zid, self.device.st_store.label, status.text)
             self.device:offline()
             return nil
         end
         self.device:online()
-        local property_list = properties[hub.PROPERTY_LIST]
-        local power = property_list[hub.POWER]
+        local property_list = properties[controller.PROPERTY_LIST]
+        local power = property_list[controller.POWER]
         if power then
             self.device:emit_event(capabilities.switch.switch.on())
         else
@@ -256,15 +256,15 @@ local Switch = classify.single({
     end,
 
     refresh = function(self)
-        Adapter.refresh(self, function(hub)
-            hub:send(hub:compose_report_zone_properties(self.zid))
+        Adapter.refresh(self, function(controller)
+            controller:send(controller:compose_report_zone_properties(self.zid))
         end)
     end,
 
     power = function(self, on)
-        local hub = self:hub()
-        if hub and hub:online() then
-            hub:send(hub:compose_set_zone_properties(self.zid, {[hub.POWER] = on}))
+        local controller = self:controller()
+        if controller and controller:online() then
+            controller:send(controller:compose_set_zone_properties(self.zid, {[controller.POWER] = on}))
         end
     end,
 
@@ -282,10 +282,10 @@ local Switch = classify.single({
 }, Adapter)
 
 local Dimmer = classify.single({
-    emit = function(self, hub, properties)
-        local property_list = Switch.emit(self, hub, properties)
+    emit = function(self, controller, properties)
+        local property_list = Switch.emit(self, controller, properties)
         if property_list then
-            local power_level = property_list[hub.POWER_LEVEL]
+            local power_level = property_list[controller.POWER_LEVEL]
             if power_level then
                 self.device:emit_event(capabilities.switchLevel.level(power_level))
             end
@@ -293,9 +293,10 @@ local Dimmer = classify.single({
     end,
 
     power_level = function(self, level)
-        local hub = self:hub()
-        if hub and hub:online() then
-            hub:send(hub:compose_set_zone_properties(self.zid, {[hub.POWER_LEVEL] = math.max(1, level)}))
+        local controller = self:controller()
+        if controller and controller:online() then
+            controller:send(controller:compose_set_zone_properties(self.zid,
+                {[controller.POWER_LEVEL] = math.max(1, level)}))
         end
     end,
 
@@ -343,28 +344,29 @@ local driver = Driver("legrand-rflc", {
         local discovery_receiver
         discovery_sender, discovery_receiver = cosock.channel.new()
         repeat
-            for device_network_id, hub in pairs(inventory.hub) do
+            for device_network_id, controller in pairs(inventory.controller) do
                 if not built:after(device_network_id, function(parent)
-                    if hub:online() then
-                        -- build zone devices reported by parent hub
-                        hub:converse(hub:compose_list_zones(), function(_, zones)
-                            local zones_status = hub.Status(zones)
+                    if controller:online() then
+                        -- build zone devices reported by parent controller
+                        controller:converse(controller:compose_list_zones(), function(_, zones)
+                            local zones_status = controller.Status(zones)
                             if zones_status.error then
                                 log.error("discovery", "zones", device_network_id, zones_status.text)
                             else
-                                for _, zone in pairs(zones[hub.ZONE_LIST]) do
-                                    local zid = zone[hub.ZID]
+                                for _, zone in pairs(zones[controller.ZONE_LIST]) do
+                                    local zid = zone[controller.ZID]
                                     local zone_device_network_id = device_network_id .. ":" .. zid
                                     if not (built.adapter[zone_device_network_id]
                                             or pending[zone_device_network_id]) then
-                                        hub:converse(hub:compose_report_zone_properties(zid), function(_, properties)
-                                            local status = hub.Status(properties)
+                                        controller:converse(controller:compose_report_zone_properties(zid),
+                                                function(_, properties)
+                                            local status = controller.Status(properties)
                                             if status.error then
                                                 log.error("discovery", "zone", zone_device_network_id, status.text)
                                             else
-                                                local property_list = properties[hub.PROPERTY_LIST]
-                                                local model = property_list[hub.DEVICE_TYPE]:lower()
-                                                local label = property_list[hub.NAME]
+                                                local property_list = properties[controller.PROPERTY_LIST]
+                                                local model = property_list[controller.DEVICE_TYPE]:lower()
+                                                local label = property_list[controller.NAME]
                                                 build(zone_device_network_id, model, label, parent.device.id)
                                             end
                                         end)
