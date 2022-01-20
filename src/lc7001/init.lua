@@ -659,7 +659,7 @@ local M = {
             if new_hub ~= old_hub then
                 if old_hub then
                     new_hub._dup = true
-                    self.Hub.Break("dup", new_hub:name(), new_hub_id)
+                    Hub.Break("dup", new_hub:name(), new_hub_id)
                 else
                     self.hub[new_hub_id] = new_hub
                     log.debug(self.EVENT_ADD, new_hub:name(), new_hub_id)
