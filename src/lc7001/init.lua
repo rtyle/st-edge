@@ -592,6 +592,9 @@ local M = {
                         break
                     end
                 else
+                    -- connect will fail if the host is unreachable.
+                    -- this will not happen for a neighbor unless/until
+                    -- the host is not in, or ages out of, the ARP cache
                     client:close()
                     log.warn(connect_error)
                     if break_on_connect_error then
@@ -665,6 +668,18 @@ local M = {
             local old_controller = self.controller[new_controller_id]
             if new_controller ~= old_controller then
                 if old_controller then
+                    -- the new_controller resolves to the same controller_id as an old_controller.
+                    -- this may happen when DHCP affects a change on the lc7001's IP address.
+                    -- this could/should be avoided by registering a static lease in the DHCP service!
+                    -- the old_controller loop will be continually trying to re-connect
+                    -- and will not stop (and be removed from our inventory) until
+                    -- its entry ages out of the system's ARP cache.
+                    -- we will break out of (and stop) the new_controller.
+                    -- when it is _remove'd from our inventory, we will notice that
+                    -- we marked it as a duplicate and, if it was added by our discover method/thread,
+                    -- we will notify it to try to rediscover it immediately.
+                    -- this behavior will continue until the old_controller fails, stops
+                    -- and the old_controller is removed from our inventory.
                     new_controller._dup = true
                     Controller.Break("dup", new_controller:address(), new_controller_id)
                 else
