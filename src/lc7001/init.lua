@@ -655,9 +655,11 @@ local M = {
             self._running[address] = nil
             if not controller._dup then
                 local controller_id = controller:controller_id()
-                self.controller[controller_id] = nil
-                log.debug(self.EVENT_REMOVE, address, controller_id)
-                self:emit(self.EVENT_REMOVE, controller, controller_id)
+                if controller_id then
+                    self.controller[controller_id] = nil
+                    log.debug(self.EVENT_REMOVE, address, controller_id)
+                    self:emit(self.EVENT_REMOVE, controller, controller_id)
+                end
             end
             if controller._rediscover then
                 self._discover_sender:send(0)
