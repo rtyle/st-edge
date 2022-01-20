@@ -423,7 +423,7 @@ local M = {
                     return authentication
                 end
             end
-            self.Continue("noauth", self:address(), self._controller_id)
+            self.Continue("noauth", self._controller_id)
         end,
 
         _send_challenge_response = function(self, authentication, challenge)
@@ -460,7 +460,7 @@ local M = {
         end,
 
         _receive_security_hello_invalid = function(self)
-            self.Continue("unauth", self:address(), self._controller_id)
+            self.Continue("unauth", self._controller_id)
         end,
 
         _receive_security_mac = function(self, message)
@@ -546,7 +546,7 @@ local M = {
             -- the loop also stops on a connect_error if told to (break_on_connect_error).
             backoff_cap = backoff_cap or self.LOOP_BACKOFF_CAP
             read_timeout = read_timeout or self.READ_TIMEOUT
-            local stop_error
+            local abort_error
             local backoff = 0
             while true do
                 local client = cosock.socket.tcp()
@@ -588,13 +588,13 @@ local M = {
                         log.debug("cont", self:address(), table.unpack(session_error))
                         -- continue
                     else
-                        stop_error = session_error
+                        abort_error = session_error
                         break
                     end
                 else
                     -- connect will fail if the host is unreachable.
                     -- this will not happen for a neighbor unless/until
-                    -- the host is not in, or ages out of, the ARP cache
+                    -- the host is not in, or ages out of, the ARP cache.
                     client:close()
                     log.warn("close", self:address(), connect_error)
                     if break_on_connect_error then
@@ -605,11 +605,17 @@ local M = {
                 cosock.socket.sleep(1 << math.min(backoff, backoff_cap))
                 backoff = backoff + 1
             end
+            -- an lc7001 may close our connection abruptly
+            -- (ECONNRESET, "Connection reset by peer").
+            -- this sometimes happens when the lc7001 is booting.
+            -- this may happen before the controller has been identified
+            -- so our EVENT_STOPPED might not come with a controller_id
+            -- (might not have been paired with an EVENT_IDENTIFIED).
             log.debug(self.EVENT_STOPPED, self:address(), self:controller_id())
             self:emit(self.EVENT_STOPPED, self)
-            if stop_error then
-                log.error(self.EVENT_STOPPED, self:address(), stop_error)
-                error(stop_error)
+            if abort_error then
+                log.error("abort", self:address(), abort_error)
+                error(abort_error)
             end
         end,
     },
@@ -636,8 +642,10 @@ local M = {
                 [Controller.EVENT_IDENTIFIED]      = function(controller, controller_id)
                     self:_add(controller, controller_id)
                 end,
-                [Controller.EVENT_STOPPED]         = function(controller)
-                    self:_remove(controller)
+                [Controller.EVENT_STOPPED]         = function(controller, controller_id)
+                    if controller_id then
+                        self:_remove(controller, controller_id)
+                    end
                 end,
             }
         end,
@@ -649,12 +657,11 @@ local M = {
             end
         end,
 
-        _remove = function(self, controller)
+        _remove = function(self, controller, controller_id)
             self:_subscribe(controller, "off")
             local address = controller:address()
             self._running[address] = nil
             if not controller._dup then
-                local controller_id = controller:controller_id()
                 self.controller[controller_id] = nil
                 log.debug(self.EVENT_REMOVE, address, controller_id)
                 self:emit(self.EVENT_REMOVE, controller, controller_id)
@@ -683,7 +690,7 @@ local M = {
                     -- this behavior will continue until the old_controller fails, stops
                     -- and the old_controller is removed from our inventory.
                     new_controller._dup = true
-                    Controller.Break("dup", new_controller:address(), controller_id)
+                    Controller.Break("dup", controller_id)
                 else
                     self.controller[controller_id] = new_controller
                     log.debug(self.EVENT_ADD, new_controller:address(), controller_id)
@@ -723,12 +730,11 @@ local M = {
                         end)
                         -- rediscover after capped exponential backoff
                         -- or our receiver hears from our sender.
-                        if cosock.socket.select({receiver}, {}, 1 << math.min(backoff, backoff_cap)) then
+                        while cosock.socket.select({receiver}, {}, 1 << math.min(backoff, backoff_cap)) do
                             log.debug("rediscover")
                             backoff = receiver:receive()
-                        else
-                            backoff = backoff + 1
                         end
+                        backoff = backoff + 1
                     end
                 end, "lc7001.Inventory.discover")
             end
