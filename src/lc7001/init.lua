@@ -573,19 +573,19 @@ local M = {
                     client:close()
                     self._reader = nil
                     self._writer = nil
-                    log.warn(self.EVENT_DISCONNECTED)
+                    log.warn("close", self:address(), self:controller_id())
                     self:emit(self.EVENT_DISCONNECTED, self)
                     if "timeout" == session_error then
                         backoff = 0
-                        log.warn(session_error)
+                        log.warn(session_error, self:address(), self:controller_id())
                     elseif "closed" == session_error then
                         backoff = 0
-                        log.warn(session_error)
+                        log.warn(session_error, self:address(), self:controller_id())
                     elseif self.Break == classify.class(session_error) then
-                        log.debug(table.unpack(session_error))
+                        log.debug("break", self:address(), table.unpack(session_error))
                         break
                     elseif self.Continue == classify.class(session_error) then
-                        log.debug(table.unpack(session_error))
+                        log.debug("cont", self:address(), table.unpack(session_error))
                         -- continue
                     else
                         stop_error = session_error
@@ -596,7 +596,7 @@ local M = {
                     -- this will not happen for a neighbor unless/until
                     -- the host is not in, or ages out of, the ARP cache
                     client:close()
-                    log.warn(connect_error)
+                    log.warn("close", self:address(), connect_error)
                     if break_on_connect_error then
                         break
                     end
@@ -605,10 +605,10 @@ local M = {
                 cosock.socket.sleep(1 << math.min(backoff, backoff_cap))
                 backoff = backoff + 1
             end
-            log.debug(self.EVENT_STOPPED)
+            log.debug(self.EVENT_STOPPED, self:address(), self:controller_id())
             self:emit(self.EVENT_STOPPED, self)
             if stop_error then
-                log.error(stop_error)
+                log.error(self.EVENT_STOPPED, self:address(), stop_error)
                 error(stop_error)
             end
         end,
@@ -643,7 +643,7 @@ local M = {
         end,
 
         _subscribe = function(self, controller, method)
-            log.debug(method, controller:address(), controller:controller_id())
+            log.debug("sub " .. method, controller:address(), controller:controller_id())
             for event, handler in pairs(self._subscription) do
                 controller[method](controller, event, handler)
             end
@@ -655,11 +655,9 @@ local M = {
             self._running[address] = nil
             if not controller._dup then
                 local controller_id = controller:controller_id()
-                if controller_id then
-                    self.controller[controller_id] = nil
-                    log.debug(self.EVENT_REMOVE, address, controller_id)
-                    self:emit(self.EVENT_REMOVE, controller, controller_id)
-                end
+                self.controller[controller_id] = nil
+                log.debug(self.EVENT_REMOVE, address, controller_id)
+                self:emit(self.EVENT_REMOVE, controller, controller_id)
             end
             if controller._rediscover then
                 self._discover_sender:send(0)
