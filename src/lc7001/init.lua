@@ -666,8 +666,8 @@ local M = {
             end
         end,
 
-        _add = function(self, new_controller, new_controller_id)
-            local old_controller = self.controller[new_controller_id]
+        _add = function(self, new_controller, controller_id)
+            local old_controller = self.controller[controller_id]
             if new_controller ~= old_controller then
                 if old_controller then
                     -- the new_controller resolves to the same controller_id as an old_controller.
@@ -685,11 +685,11 @@ local M = {
                     -- this behavior will continue until the old_controller fails, stops
                     -- and the old_controller is removed from our inventory.
                     new_controller._dup = true
-                    Controller.Break("dup", new_controller:address(), new_controller_id)
+                    Controller.Break("dup", new_controller:address(), controller_id)
                 else
-                    self.controller[new_controller_id] = new_controller
-                    log.debug(self.EVENT_ADD, new_controller:address(), new_controller_id)
-                    self:emit(self.EVENT_ADD, new_controller, new_controller_id)
+                    self.controller[controller_id] = new_controller
+                    log.debug(self.EVENT_ADD, new_controller:address(), controller_id)
+                    self:emit(self.EVENT_ADD, new_controller, controller_id)
                 end
             end
         end,
