@@ -612,7 +612,7 @@ local M = {
             -- so our EVENT_STOPPED might not come with a controller_id
             -- (might not have been paired with an EVENT_IDENTIFIED).
             log.debug(self.EVENT_STOPPED, self:address(), self:controller_id())
-            self:emit(self.EVENT_STOPPED, self)
+            self:emit(self.EVENT_STOPPED, self, self:controller_id())
             if abort_error then
                 log.error("abort", self:address(), abort_error)
                 error(abort_error)
@@ -690,7 +690,7 @@ local M = {
                     -- this behavior will continue until the old_controller fails, stops
                     -- and the old_controller is removed from our inventory.
                     new_controller._dup = true
-                    Controller.Break("dup", controller_id)
+                    Controller.Break(controller_id, "dup")
                 else
                     self.controller[controller_id] = new_controller
                     log.debug(self.EVENT_ADD, new_controller:address(), controller_id)
