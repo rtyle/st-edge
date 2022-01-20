@@ -637,10 +637,15 @@ local M = {
             }
         end,
 
-        _remove = function(self, hub)
+        _subscribe = function(self, hub, method)
+            log.debug(method, hub:name(), hub:hub_id())
             for event, handler in pairs(self._subscription) do
-                hub:off(event, handler)
+                hub[method](hub, event, handler)
             end
+        end,
+
+        _remove = function(self, hub)
+            self:_subscribe(hub, "off")
             local name = hub:name()
             self._running[name] = nil
             if not hub._dup then
@@ -675,9 +680,7 @@ local M = {
                 log.debug("dup", name)
             else
                 self._running[name] = true
-                for event, handler in pairs(self._subscription) do
-                    hub:on(event, handler)
-                end
+                self:_subscribe(hub, "on")
                 cosock.spawn(function()
                     hub:loop(loop_backoff_cap, read_timeout, rediscover)
                 end, "lc7001.Hub " .. name)
