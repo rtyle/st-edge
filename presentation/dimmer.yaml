@@ -1,0 +1,49 @@
+dashboard:
+  states:
+    - component: main
+      capability: switch
+      version: 1
+  actions:
+    - component: main
+      capability: switch
+      version: 1
+detailView:
+  - component: main
+    capability: switch
+    version: 1
+  - component: main
+    capability: switchLevel
+    version: 1
+    values: 
+      - key: level.value
+        range:
+          - 1
+          - 100
+        step: 1
+automation:
+  conditions:
+    - component: main
+      capability: switch
+      version: 1
+    - component: main
+      capability: switchLevel
+      version: 1
+      values: 
+        - key: level.value
+          range:
+            - 1
+            - 100
+          step: 1
+  actions:
+    - component: main
+      capability: switch
+      version: 1
+    - component: main
+      capability: switchLevel
+      version: 1
+      values: 
+        - key: level.value
+          range:
+            - 1
+            - 100
+          step: 1

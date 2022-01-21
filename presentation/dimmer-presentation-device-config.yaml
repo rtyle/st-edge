@@ -1,0 +1,78 @@
+mnmn: SmartThingsCommunity
+vid: 39263ed1-b413-33b0-9f68-7a8d28e823c8
+version: 0.0.1
+type: profile
+iconUrl: null
+dashboard:
+  states:
+    - component: main
+      capability: switch
+      version: 1
+      idx: 0
+      group: main
+      values: []
+      composite: false
+  actions:
+    - component: main
+      capability: switch
+      version: 1
+      idx: 0
+      group: main
+detailView:
+  - component: main
+    capability: switch
+    version: 1
+    values: []
+    patch: []
+  - component: main
+    capability: switchLevel
+    version: 1
+    values:
+      - key: level.value
+        enabledValues: []
+        range:
+          - 1
+          - 100
+        step: 1
+    patch: []
+automation:
+  conditions:
+    - component: main
+      capability: switch
+      version: 1
+      values: []
+      patch: []
+      exclusion: []
+    - component: main
+      capability: switchLevel
+      version: 1
+      values:
+        - key: level.value
+          enabledValues: []
+          range:
+            - 1
+            - 100
+          step: 1
+      patch: []
+      exclusion: []
+  actions:
+    - component: main
+      capability: switch
+      version: 1
+      values: []
+      patch: []
+      exclusion: []
+    - component: main
+      capability: switchLevel
+      version: 1
+      values:
+        - key: level.value
+          enabledValues: []
+          range:
+            - 1
+            - 100
+          step: 1
+      patch: []
+      exclusion: []
+presentationId: 39263ed1-b413-33b0-9f68-7a8d28e823c8
+manufacturerName: SmartThingsCommunity

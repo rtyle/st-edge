@@ -10,3 +10,6 @@ components:
     version: 1
   categories:
   - name: Light
+metadata:
+  mnmn: SmartThingsCommunity
+  vid: 39263ed1-b413-33b0-9f68-7a8d28e823c8

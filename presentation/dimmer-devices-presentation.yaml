@@ -1,0 +1,181 @@
+mnmn: SmartThingsCommunity
+vid: 2c678b30-11bf-3525-9fb9-57356be530ae
+version: 0.0.1
+iconUrl: null
+dashboard:
+  states:
+    - label: '{{switch.value}}'
+      alternatives:
+        - key: 'on'
+          value: >-
+            ___PO_CODE_CAPABILITY.SMARTTHINGS.SWITCH_DEFAULT_ATTRIBUTES_SWITCH_ON
+          type: active
+        - key: 'off'
+          value: >-
+            ___PO_CODE_CAPABILITY.SMARTTHINGS.SWITCH_DEFAULT_ATTRIBUTES_SWITCH_OFF
+          type: inactive
+      capability: switch
+      version: 1
+      component: main
+      composite: false
+      group: main
+  actions:
+    - displayType: standbyPowerSwitch
+      standbyPowerSwitch:
+        command:
+          'on': 'on'
+          'off': 'off'
+        state:
+          value: switch.value
+          'on': 'on'
+          'off': 'off'
+      group: main
+      capability: switch
+      version: 1
+      component: main
+  basicPlus: []
+detailView:
+  - capability: switch
+    version: 1
+    label: ___PO_CODE_CAPABILITY.SMARTTHINGS.SWITCH_DEFAULT
+    displayType: standbyPowerSwitch
+    standbyPowerSwitch:
+      command:
+        'on': 'on'
+        'off': 'off'
+      state:
+        value: switch.value
+        'on': 'on'
+        'off': 'off'
+        label: '{{switch.value}}'
+        alternatives:
+          - key: 'on'
+            value: >-
+              ___PO_CODE_CAPABILITY.SMARTTHINGS.SWITCH_DEFAULT_ATTRIBUTES_SWITCH_ON
+            type: active
+          - key: 'off'
+            value: >-
+              ___PO_CODE_CAPABILITY.SMARTTHINGS.SWITCH_DEFAULT_ATTRIBUTES_SWITCH_OFF
+            type: inactive
+    state: null
+    component: main
+  - capability: switchLevel
+    version: 1
+    label: ___PO_CODE_CAPABILITY.SMARTTHINGS.SWITCHLEVEL_DEFAULT
+    displayType: slider
+    slider:
+      range:
+        - 0
+        - 100
+      step: null
+      unit: level.unit
+      command: setLevel
+      argumentType: integer
+      value: level.value
+      valueType: integer
+    state: null
+    component: main
+  - capability: refresh
+    version: 1
+    label: ___PO_CODE_CAPABILITY.SMARTTHINGS.REFRESH_DEFAULT
+    displayType: pushButton
+    pushButton:
+      command: refresh
+    state: null
+    component: main
+automation:
+  conditions:
+    - capability: switch
+      version: 1
+      label: ___PO_CODE_CAPABILITY.SMARTTHINGS.SWITCH_DEFAULT
+      displayType: list
+      list:
+        alternatives:
+          - key: 'on'
+            value: >-
+              ___PO_CODE_CAPABILITY.SMARTTHINGS.SWITCH_DEFAULT_ATTRIBUTES_SWITCH_ON
+            type: active
+          - key: 'off'
+            value: >-
+              ___PO_CODE_CAPABILITY.SMARTTHINGS.SWITCH_DEFAULT_ATTRIBUTES_SWITCH_OFF
+            type: inactive
+        value: switch.value
+      emphasis: true
+      exclusion: []
+      component: main
+    - capability: switchLevel
+      version: 1
+      label: ___PO_CODE_CAPABILITY.SMARTTHINGS.SWITCHLEVEL_DEFAULT
+      displayType: slider
+      slider:
+        range:
+          - 0
+          - 100
+        step: null
+        unit: level.unit
+        value: level.value
+        valueType: integer
+      exclusion: []
+      component: main
+  actions:
+    - capability: switch
+      version: 1
+      label: ___PO_CODE_CAPABILITY.SMARTTHINGS.SWITCH_DEFAULT
+      displayType: list
+      list:
+        alternatives:
+          - key: 'on'
+            value: ___PO_CODE_CAPABILITY.SMARTTHINGS.SWITCH_DEFAULT_COMMANDS_ON
+            type: active
+          - key: 'off'
+            value: ___PO_CODE_CAPABILITY.SMARTTHINGS.SWITCH_DEFAULT_COMMANDS_OFF
+            type: inactive
+      emphasis: true
+      component: main
+      exclusion: []
+    - capability: switchLevel
+      version: 1
+      label: ___PO_CODE_CAPABILITY.SMARTTHINGS.SWITCHLEVEL_DEFAULT
+      displayType: slider
+      slider:
+        range:
+          - 0
+          - 100
+        step: null
+        unit: level.unit
+        command: setLevel
+        argumentType: integer
+      component: main
+      exclusion: []
+dpInfo:
+  - os: ios
+    dpUri: 'plugin://com.samsung.ios.plugin.stplugin/assets/files/index.html'
+  - os: android
+    dpUri: 'plugin://com.samsung.android.plugin.stplugin'
+  - os: web
+    dpUri: 'wwst://com.samsung.one.plugin.stplugin'
+language:
+  - locale: en_US
+    poCodes:
+      - label: Power
+        po: ___PO_CODE_CAPABILITY.SMARTTHINGS.SWITCH_DEFAULT
+      - label: Power
+        po: ___PO_CODE_CAPABILITY.SMARTTHINGS.SWITCH_DEFAULT_ATTRIBUTES_SWITCH
+      - label: 'On'
+        po: ___PO_CODE_CAPABILITY.SMARTTHINGS.SWITCH_DEFAULT_ATTRIBUTES_SWITCH_ON
+      - label: Turn off
+        po: ___PO_CODE_CAPABILITY.SMARTTHINGS.SWITCH_DEFAULT_COMMANDS_OFF
+      - label: 'Off'
+        po: ___PO_CODE_CAPABILITY.SMARTTHINGS.SWITCH_DEFAULT_ATTRIBUTES_SWITCH_OFF
+      - label: Turn on
+        po: ___PO_CODE_CAPABILITY.SMARTTHINGS.SWITCH_DEFAULT_COMMANDS_ON
+      - label: Dimmer
+        po: ___PO_CODE_CAPABILITY.SMARTTHINGS.SWITCHLEVEL_DEFAULT_ATTRIBUTES_LEVEL
+      - label: Dimmer
+        po: ___PO_CODE_CAPABILITY.SMARTTHINGS.SWITCHLEVEL_DEFAULT
+      - label: Refresh
+        po: ___PO_CODE_CAPABILITY.SMARTTHINGS.REFRESH_DEFAULT
+      - label: Refresh
+        po: ___PO_CODE_CAPABILITY.SMARTTHINGS.REFRESH_DEFAULT_COMMANDS_REFRESH
+manufacturerName: SmartThingsCommunity
+presentationId: 2c678b30-11bf-3525-9fb9-57356be530ae
