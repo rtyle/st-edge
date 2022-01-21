@@ -18,6 +18,65 @@ local Reader        = require "util.reader"
 local classify      = require "util.classify"
 local resolve       = require "util.resolve"
 
+--[[
+we should not have to define lua socket related error constants!
+referencing https://github.com/diegonehab/luasocket source
+
+    io.c: io_strerror
+
+        switch (err) {
+            case IO_DONE: return NULL;
+            case IO_CLOSED: return "closed";
+            case IO_TIMEOUT: return "timeout";
+            default: return "unknown error";
+        }
+
+    usocket.c: socket_strerror
+
+        if (err <= 0) return io_strerror(err);
+        switch (err) {
+            case EADDRINUSE: return PIE_ADDRINUSE;
+            case EISCONN: return PIE_ISCONN;
+            case EACCES: return PIE_ACCESS;
+            case ECONNREFUSED: return PIE_CONNREFUSED;
+            case ECONNABORTED: return PIE_CONNABORTED;
+            case ECONNRESET: return PIE_CONNRESET;
+            case ETIMEDOUT: return PIE_TIMEDOUT;
+            default: {
+                return strerror(err);
+            }
+        }
+
+    pierror.h:
+
+        #define PIE_HOST_NOT_FOUND "host not found"
+        #define PIE_ADDRINUSE      "address already in use"
+        #define PIE_ISCONN         "already connected"
+        #define PIE_ACCESS         "permission denied"
+        #define PIE_CONNREFUSED    "connection refused"
+        #define PIE_CONNABORTED    "closed"
+        #define PIE_CONNRESET      "closed"
+        #define PIE_TIMEDOUT       "timeout"
+        #define PIE_AGAIN          "temporary failure in name resolution"
+        #define PIE_BADFLAGS       "invalid value for ai_flags"
+        #define PIE_BADHINTS       "invalid value for hints"
+        #define PIE_FAIL           "non-recoverable failure in name resolution"
+        #define PIE_FAMILY         "ai_family not supported"
+        #define PIE_MEMORY         "memory allocation failure"
+        #define PIE_NONAME         "host or service not provided, or not known"
+        #define PIE_OVERFLOW       "argument buffer overflow"
+        #define PIE_PROTOCOL       "resolved protocol is unknown"
+        #define PIE_SERVICE        "service not supported for socket type"
+        #define PIE_SOCKTYPE       "ai_socktype not supported"
+
+SmartThings fork of luasocket (where is it?) must be different as an
+ECONNRESET condition results in "Connection reset by peer".
+]]--
+
+local SOCKET_ERROR_CLOSED        = "closed"
+local SOCKET_ERROR_CONNRESET     = "Connection reset by peer"   -- strerror(ECONRESET)
+local SOCKET_ERROR_TIMEOUT       = "timeout"
+
 local function starts_with(whole, part)
     return part == whole:sub(1, #part)
 end
@@ -546,6 +605,11 @@ local M = {
             -- the loop also stops on a connect_error if told to (break_on_connect_error).
             backoff_cap = backoff_cap or self.LOOP_BACKOFF_CAP
             read_timeout = read_timeout or self.READ_TIMEOUT
+            local continue_on = {
+                [SOCKET_ERROR_TIMEOUT]      = true,
+                [SOCKET_ERROR_CLOSED]       = true,
+                [SOCKET_ERROR_CONNRESET]    = true,
+            }
             local abort_error
             local backoff = 0
             while true do
@@ -575,10 +639,7 @@ local M = {
                     self._writer = nil
                     log.warn("close", self:address(), self:controller_id())
                     self:emit(self.EVENT_DISCONNECTED, self)
-                    if "timeout" == session_error then
-                        backoff = 0
-                        log.warn(session_error, self:address(), self:controller_id())
-                    elseif "closed" == session_error then
+                    if continue_on[session_error] then
                         backoff = 0
                         log.warn(session_error, self:address(), self:controller_id())
                     elseif self.Break == classify.class(session_error) then
@@ -605,12 +666,9 @@ local M = {
                 cosock.socket.sleep(1 << math.min(backoff, backoff_cap))
                 backoff = backoff + 1
             end
-            -- an lc7001 may close our connection abruptly
-            -- (ECONNRESET, "Connection reset by peer").
-            -- this sometimes happens when the lc7001 is booting.
-            -- this may happen before the controller has been identified
-            -- so our EVENT_STOPPED might not come with a controller_id
-            -- (might not have been paired with an EVENT_IDENTIFIED).
+            -- on an unexpected abort_error,
+            -- our EVENT_STOPPED may not come with a controller_id
+            -- as our peer may never have been identified.
             log.debug(self.EVENT_STOPPED, self:address(), self:controller_id())
             self:emit(self.EVENT_STOPPED, self, self:controller_id())
             if abort_error then
@@ -684,7 +742,7 @@ local M = {
                     -- we will break out of (and stop) the new_controller.
                     -- when it is _remove'd from our inventory, we will notice that
                     -- we marked it as a _dup to prevent the old_controller from being removed
-                    -- from our inventory and EVENT_REMOVE from being emitted.
+                    -- from our inventory.
                     -- our discover method/thread will mark a Controller it creates with _rediscover
                     -- and _remove will tell it to immediately try to rediscover it.
                     -- this behavior will continue until the old_controller fails, stops
