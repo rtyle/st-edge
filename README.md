@@ -49,7 +49,7 @@ Enroll your SmartThings HUB in this distribution channel.
 
 Install this package on your SmartThings hub.
 
-	# create private.mk with variables for HUB, DRIVER, CHANNEL and hub’s ADDRESS
+	# create private.mk file with variables for your HUB, DRIVER, CHANNEL and your hub’s ADDRESS
 	make install
 
 ## Development
