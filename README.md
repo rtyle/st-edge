@@ -93,7 +93,8 @@ Example luacheck usage.
 
 ### Visual Studio Code
 
-You should be able to debug much of the code through the command line interpreter interface supported by *cli.lua*.
+Debug as much of the code in the development environment as possible.
+Visual Studio Code workspaces are provided.
 Set the LUALOG environment variable to see log messages through the DEBUG level.
 
 	LUALOG=DEBUG code workspace.code-workspace
