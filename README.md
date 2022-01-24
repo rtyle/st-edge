@@ -90,3 +90,13 @@ Install luacheck tool.
 Example luacheck usage.
 
 	./lua_modules/bin/luacheck src/init.lua
+
+## Development
+
+### Visual Studio Code
+
+You should be able to debug much of the code through the command line interpreter interface supported by *cli.lua*.
+Set the LUALOG environment variable to see log messages through the DEBUG level.
+
+	LUALOG=DEBUG code workspace.code-workspace
+	Extensions: Search: Lua Debug (actboy168): Install
