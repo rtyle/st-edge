@@ -49,11 +49,3 @@ The first line output will suggest the command needed to interface with it. For 
 	socat - TCP:127.0.0.1:38019
 
 See *cli.lua* source code for the simple command set.
-
-### Visual Studio Code
-
-You should be able to debug much of the code through the command line interpreter interface supported by *cli.lua*.
-Set the LUALOG environment variable to see log messages through the DEBUG level.
-
-	LUALOG=DEBUG code workspace.code-workspace
-	Extensions: Search: Lua Debug (actboy168): Install
