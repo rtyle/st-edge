@@ -1,3 +1,0 @@
-#!/bin/bash
-
-LUALOG=DEBUG exec ./tools/bin/lua -l paths cli.lua $*

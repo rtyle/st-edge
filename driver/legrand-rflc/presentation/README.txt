@@ -34,4 +34,4 @@ https://community.smartthings.com/t/how-can-i-change-the-minimum-dimmer-presenta
 
 # some of this information needs to be appended to profiles/dimmer.yaml
 
-	(echo metadata:; head -2 presentation/dimmer-presentation-device-config.yaml | sed 's/^/  /') >> profiles/dimmer.yaml
+	(echo metadata:; head -2 presentation/dimmer-presentation-device-config.yaml | sed 's/^/  /') >> package/profiles/dimmer.yaml

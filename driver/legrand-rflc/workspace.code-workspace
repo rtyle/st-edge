@@ -16,13 +16,13 @@
 	},
 	"settings": {
 		"lua.debug.settings.path": [
-			"${workspaceFolder}/src/?.lua",
-			"${workspaceFolder}/src/?/init.lua",
-			"${workspaceFolder}/lua_modules/share/lua/5.3/?.lua",
-			"${workspaceFolder}/lua_modules/share/lua/5.3/?/init.lua",
+			"${workspaceFolder}/package/src/?.lua",
+			"${workspaceFolder}/package/src/?/init.lua",
+			"${workspaceFolder}/../../lua_modules/share/lua/5.3/?.lua",
+			"${workspaceFolder}/../../lua_modules/share/lua/5.3/?/init.lua",
 		],
 		"lua.debug.settings.cpath": [
-			"${workspaceFolder}/lua_modules/lib/lua/5.3/?.so",
+			"${workspaceFolder}/../../lua_modules/lib/lua/5.3/?.so",
 		],
 		"lua.debug.settings.luaVersion": "5.3"
 	}
