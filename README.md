@@ -91,8 +91,6 @@ Example luacheck usage.
 
 	./lua_modules/bin/luacheck src/init.lua
 
-## Development
-
 ### Visual Studio Code
 
 You should be able to debug much of the code through the command line interpreter interface supported by *cli.lua*.
