@@ -4,6 +4,11 @@ PACKAGES := $(addsuffix /package.zip, $(wildcard driver/*))
 
 all: $(PACKAGES)
 
+# we do not use ...
+#	./smartthings edge:drivers:package --build
+# because it does not follow symbolic links.
+# instead, we build a zip file in a way that does
+# and upload the result separately.
 $(PACKAGES):
 	(cd $(basename $@); zip ../$(@F) $$(find . -follow) > /dev/null)
 
