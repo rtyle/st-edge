@@ -1,4 +1,4 @@
-# st-edge-legrand-rflc
+# st-edge/driver/legrand-rflc
 
 [SmartThings Edge Driver](https://community.smartthings.com/t/preview-smartthings-managed-edge-device-drivers)
 for a
@@ -13,56 +13,6 @@ This does not use Legrand Cloud services and the SmartThings Cloud is only requi
 Unlike the
 [Legrand Lighting Control App](https://play.google.com/store/apps/details?id=us.legrand.lighting),
 this driver can interface with multiple LC7001 controllers on the same LAN.
-
-## Deployment
-
-### Deployment from Public Channel
-
-TODO.
-
-### Deployment from Private Channel Built from Source
-
-These instructions are written for a Linux platform. Similar steps may be taken for MacOS or Windows.
-
-Get the source from this repository.
-
-	git clone https://github.com/rtyle/st-edge-legrand-rflc.git
-
-All commands documented here are executed from this directory.
-
-	cd st-edge-legrand-rflc
-
-Update all submodules of this repository.
-
-	git submodule update --init --recursive
-
-Install the latest (v0.0.0-pre.34, at the time of this writing) smartthings-cli.
-
-	curl -L https://github.com/SmartThingsCommunity/smartthings-cli/releases/download/v0.0.0-pre.34/smartthings-linux.zip | gunzip - | install /dev/stdin smartthings
-
-Copy source dependencies into our package (they cannot be gathered through symbolic links).
-
-	cp -r modules/lockbox/lockbox src/
-
-Create a SmartThings Edge Driver package from this source.
-
-	./smartthings edge:drivers:package
-
-If needed, create a new distribution channel for this package.
-
-	./smartthings edge:channels:create
-
-Assign this package to a distribution channel.
-
-	./smartthings edge:channels:assign
-
-Enroll your SmartThings hub in this distribution channel.
-
-	./smartthings edge:channels:enroll
-
-Install this package on your SmartThings hub.
-
-	./smartthings edge:drivers:install
 
 ## Usage
 
@@ -87,43 +37,6 @@ Refreshing the status of all lights associated with an LC7001 controller can be 
 Removing the device for an LC7001 controller will remove all of its associated devices.
 
 ## Development
-
-### Command line lua
-
-SmartThings uses an old version of lua (5.3) that is likely not to be supported by your Linux distribution.
-Build from the source.
-
-	curl https://www.lua.org/ftp/lua-5.3.6.tar.gz | tar xzf -
-	(cd lua-5.3.6; make linux)
-	(cd lua-5.3.6; make install INSTALL_TOP=$(realpath ..)/tools)
-
-### Luarocks
-
-Build luarocks from our submodule.
-
-	(cd modules/luarocks; ./configure --help)
-	(cd modules/luarocks; ./configure --with-lua=$(realpath ../../tools) --prefix=$(realpath ../../tools))
-	(cd modules/luarocks; make install)
-
-	tools/bin/luarocks init
-
-#### lua_modules
-
-Install SmartThings supported modules (https://luarocks.org/modules/azdle/st).
-
-	./luarocks install cosock
-	./luarocks install dkjson
-	./luarocks install logface
-	./luarocks install luasec
-	./luarocks install luasocket
-
-Install luacheck tool.
-
-	./luarocks install luacheck
-
-Example luacheck usage.
-
-	./lua_modules/bin/luacheck src/init.lua
 
 ### Command Line Interpreter Testing
 
