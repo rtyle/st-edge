@@ -29,7 +29,8 @@ return function(name, resolution)
         ),
     })
 
-    local answer_len = 12 + (labels:len() + 1) + 14
+    local labels_len = labels:len()
+    local answer_len = 12 + (labels_len + 1) + 14
 
     local resolver = cosock.socket.udp()
 
@@ -48,14 +49,15 @@ return function(name, resolution)
                 questions,
                 answers,
                 authorities,
-                _,              -- additional (ignore)
+                _,              -- Additional RRs (ignore)
                 _labels,
+                zero,           -- null terminator
                 _type,
                 _class,
                 _,              -- TTL (ignore)
                 length,
                 a, b, c, d
-            = string.unpack("> I2 I2 I2 I2 I2 I2 z I2 I2 I4 I2 BBBB", answer)
+            = string.unpack("> I2 I2 I2 I2 I2 I2 c" .. labels_len .. " B I2 I2 I4 I2 BBBB", answer)
             if true
                 and transaction_id  == _transaction_id
                 and 0x8400          == flags
@@ -63,6 +65,7 @@ return function(name, resolution)
                 and 1               == answers
                 and 0               == authorities
                 and labels          == _labels
+                and 0               == zero
                 and type            == _type
                 and class           == _class & ~0x8000 -- ignore Cache flush: True
                 and 4               == length
