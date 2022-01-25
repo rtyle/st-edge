@@ -48,11 +48,11 @@ return function(name, resolution)
                 questions,
                 answers,
                 authorities,
-                additional,
+                _,              -- additional (ignore)
                 _labels,
                 _type,
                 _class,
-                ttl,
+                _,              -- TTL (ignore)
                 length,
                 a, b, c, d
             = string.unpack("> I2 I2 I2 I2 I2 I2 z I2 I2 I4 I2 BBBB", answer)
