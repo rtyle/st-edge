@@ -30,11 +30,6 @@ Install the latest (v0.0.0-pre.34, at the time of this writing) smartthings-cli.
 
 	curl -L https://github.com/SmartThingsCommunity/smartthings-cli/releases/download/v0.0.0-pre.34/smartthings-linux.zip | gunzip - | install /dev/stdin smartthings
 
-Make SmartThings Edge Driver packages from this source.
-
-	make
-	make upload
-
 If needed, create a new distribution CHANNEL for these packages.
 
 	./smartthings edge:channels:create
@@ -49,7 +44,7 @@ Enroll your SmartThings HUB in this distribution channel.
 
 Install this package on your SmartThings hub.
 
-	# create private.mk file with variables for your HUB, DRIVER, CHANNEL and your hub’s ADDRESS
+	# create private.mk as makefile suggests and
 	make install
 
 ## Development
