@@ -9,6 +9,7 @@ local log           = require "log"
 local lc7001        = require "lc7001"
 
 local classify      = require "util.classify"
+local Semaphore     = require "util.semaphore"
 
 -- device models/types, sub_drivers
 local PARENT        = "lc7001"
@@ -31,55 +32,44 @@ local SUBSCRIBE     = "subscribe"
 local authentication = {}
 local inventory = lc7001.Inventory(authentication)
 
--- built remembers adapters (by device_network_id) that have been built for devices
--- and emits events with the adapter after it has been added
-local built = {
+-- use a binary Semaphore to serialize access to driver:try_create_device() calls;
+-- otherwise, these requests tend to get ignored or not completed through lifecycle init.
+local try_create_device_semaphore = Semaphore()
+
+-- ready remembers adapters (by device_network_id) that have been init'ed for devices.
+-- ready:add does a try_create_device_semaphore:release
+-- and any pending use of this adapter is performed.
+local ready = {
     adapter = {},
-
-    _handler = {},
-
-    _emit = function(self, device_network_id, adapter)
-        local handler = self._handler[device_network_id]
-        if handler then
-            handler(adapter)
-            self._handler[device_network_id] = nil
-        end
-    end,
-
-    _once = function(self, device_network_id, handler)
-        self._handler[device_network_id] = handler
-    end,
+    pending = {},
 
     add = function(self, adapter)
         local device_network_id = adapter.device.device_network_id
         self.adapter[device_network_id] = adapter
-        self:_emit(device_network_id, adapter)
+        try_create_device_semaphore:release()
+        local use = self.pending[device_network_id]
+        if use then
+            use()
+            self.pending[device_network_id] = nil
+        end
     end,
 
     remove = function(self, device_network_id)
         self.adapter[device_network_id] = nil
     end,
 
-    after = function(self, device_network_id, handler)
-        if not device_network_id then
-            handler()
-        else
-            local adapter = self.adapter[device_network_id]
-            if adapter then
-                handler(adapter)
-                return adapter
-            end
-            self:_once(device_network_id, handler)
+    acquire = function(self, device_network_id, use)
+        local adapter = self.adapter[device_network_id]
+        if adapter then
+            use(adapter)
+            return adapter
         end
-    end,
-
-    flush = function(self)
-        self._handler = {}
+        self.pending[device_network_id] = use
     end,
 }
 
 local function refresh(controller, device_network_id, method)
-    local parent = built.adapter[device_network_id]
+    local parent = ready.adapter[device_network_id]
     if parent then
         parent:subscribe(controller, method)
         parent:refresh()
@@ -321,12 +311,9 @@ local driver = Driver("legrand-rflc", {
         inventory:discover()
 
         local pending = {}
-        local last_device_network_id
-        local function build(device_network_id, model, label, parent_device_id)
+        local function create(device_network_id, model, label, parent_device_id)
             pending[device_network_id] = true
-            built:after(last_device_network_id, function()
-                -- run immediately if last_device_network_id has already been built;
-                -- otherwise, run immediately after it has been built
+            try_create_device_semaphore:acquire(function()
                 log.debug("discovery", "create", device_network_id, model, label, parent_device_id)
                 driver:try_create_device{
                     type = "LAN",
@@ -338,16 +325,15 @@ local driver = Driver("legrand-rflc", {
                     parent_device_id = parent_device_id,
                 }
             end)
-            last_device_network_id = device_network_id
         end
 
         local discovery_receiver
         discovery_sender, discovery_receiver = cosock.channel.new()
         repeat
             for device_network_id, controller in pairs(inventory.controller) do
-                if not built:after(device_network_id, function(parent)
+                if not ready:acquire(device_network_id, function(parent)
                     if controller:online() then
-                        -- build zone devices reported by parent controller
+                        -- create zone devices reported by parent controller
                         controller:converse(controller:compose_list_zones(), function(_, zones)
                             local zones_status = controller.Status(zones)
                             if zones_status.error then
@@ -356,7 +342,7 @@ local driver = Driver("legrand-rflc", {
                                 for _, zone in pairs(zones[controller.ZONE_LIST]) do
                                     local zid = zone[controller.ZID]
                                     local zone_device_network_id = device_network_id .. ":" .. zid
-                                    if not (built.adapter[zone_device_network_id]
+                                    if not (ready.adapter[zone_device_network_id]
                                             or pending[zone_device_network_id]) then
                                         controller:converse(controller:compose_report_zone_properties(zid),
                                                 function(_, properties)
@@ -367,7 +353,7 @@ local driver = Driver("legrand-rflc", {
                                                 local property_list = properties[controller.PROPERTY_LIST]
                                                 local model = property_list[controller.DEVICE_TYPE]:lower()
                                                 local label = property_list[controller.NAME]
-                                                build(zone_device_network_id, model, label, parent.device.id)
+                                                create(zone_device_network_id, model, label, parent.device.id)
                                             end
                                         end)
                                     end
@@ -376,10 +362,10 @@ local driver = Driver("legrand-rflc", {
                         end)
                     end
                 end) then
-                    -- build parent device for zones
+                    -- create parent device for zones
                     if not pending[device_network_id] then
                         local label = "Legrand Whole House Lighting Controller " .. device_network_id
-                        build(device_network_id, PARENT, label)
+                        create(device_network_id, PARENT, label)
                     end
                 end
             end
@@ -391,14 +377,17 @@ local driver = Driver("legrand-rflc", {
         until not should_continue()
         discovery_sender = nil
 
-        built:flush()
+	-- clear discovery callbacks
+        try_create_device_semaphore = Semaphore()
+	ready.pending = {}
+
         log.debug("discovery", "stop")
     end,
 
     lifecycle_handlers = {
         removed = function(_, device)
             Adapter.call(device, REMOVED)
-            built:remove(device.device_network_id)
+            ready:remove(device.device_network_id)
         end,
     },
 
@@ -407,7 +396,7 @@ local driver = Driver("legrand-rflc", {
             NAME = PARENT,
             can_handle = function(_, _, device) return device.st_store.model == PARENT end,
             lifecycle_handlers = {
-                init = function(driver, device) built:add(Parent(driver, device)) end,
+                init = function(driver, device) ready:add(Parent(driver, device)) end,
                 infoChanged = function(_, device, event, args) Adapter.call(device, INFO_CHANGED, event, args) end,
             },
             capability_handlers = Parent.capability_handlers,
@@ -415,13 +404,13 @@ local driver = Driver("legrand-rflc", {
         {
             NAME = SWITCH,
             can_handle = function(_, _, device) return device.st_store.model == SWITCH end,
-            lifecycle_handlers = {init = function(driver, device) built:add(Switch(driver, device)) end},
+            lifecycle_handlers = {init = function(driver, device) ready:add(Switch(driver, device)) end},
             capability_handlers = Switch.capability_handlers,
         },
         {
             NAME = DIMMER,
             can_handle = function(_, _, device) return device.st_store.model == DIMMER end,
-            lifecycle_handlers = {init = function(driver, device) built:add(Dimmer(driver, device)) end},
+            lifecycle_handlers = {init = function(driver, device) ready:add(Dimmer(driver, device)) end},
             capability_handlers = Dimmer.capability_handlers,
         },
     },
