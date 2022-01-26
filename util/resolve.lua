@@ -13,7 +13,7 @@ return function(name, resolution)
     labels = table.concat(labels)
 
     local transaction_id    = 0
-    local type              = 1 -- Type: A (Host Address0)
+    local type              = 1 -- Type: A (Host Address)
     local class             = 1 -- Class: IN
     local question = table.concat({
         string.pack("> I2 I2 I2 I2 I2 I2 z I2 I2",
