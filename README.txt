@@ -51,8 +51,7 @@
 
 	# forked lua-lockbox to resolve SmartThings hub incompatibilities
 
-		git submodule add git@github.com:rtyle/lua-lockbox.git modules/lockbox
-		(cd modules/lockbox; git checkout smartthings-edge)
+		git submodule add -b smartthings-edge https://github.com/rtyle/lua-lockbox.git modules/lockbox
 
 	# forked suncalc for lua port
 
