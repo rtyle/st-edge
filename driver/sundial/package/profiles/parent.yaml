@@ -1,0 +1,36 @@
+name: parent
+components:
+- id: main
+  capabilities:
+  - id: refresh
+    version: 1
+  categories:
+  - name: Bridges
+preferences:
+  - name: "latitude"
+    title: "Latitude"
+    description: "Location latitude in decimal degrees"
+    required: true
+    preferenceType: number
+    definition:
+      minimum: -90
+      maximum: 90
+      default: 34.052235
+  - name: "longitude"
+    title: "Longitude"
+    description: "Location longitude in decimal degrees"
+    required: true
+    preferenceType: number
+    definition:
+      minimum: -180
+      maximum: 180
+      default: -118.243683
+  - name: "height"
+    title: "Height"
+    description: "Observer height (in meters) relative to the horizon"
+    required: true
+    preferenceType: number
+    definition:
+      minimum: -1000
+      maximum: 10000
+      default: 0

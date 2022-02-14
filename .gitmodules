@@ -4,3 +4,7 @@
 [submodule "modules/lockbox"]
 	path = modules/lockbox
 	url = git@github.com:rtyle/lua-lockbox.git
+[submodule "modules/suncalc"]
+	path = modules/suncalc
+	url = https://github.com/rtyle/suncalc-lua.git
+	branch = suncalc.lua

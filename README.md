@@ -3,6 +3,7 @@
 [SmartThings Edge Drivers](https://community.smartthings.com/t/preview-smartthings-managed-edge-device-drivers)
 
 * [legrand-rflc](https://github.com/rtyle/st-edge/blob/master/driver/legrand-rflc/README.md)
+* [sundial](https://github.com/rtyle/st-edge/blob/master/driver/sundial/README.md)
 
 ## Deployment
 
@@ -26,9 +27,9 @@ Update all submodules of this repository.
 
 	git submodule update --init --recursive
 
-Install the latest (v0.0.0-pre.34, at the time of this writing) smartthings-cli.
+Install the latest (v0.0.0-pre.36, at the time of this writing) smartthings-cli.
 
-	curl -L https://github.com/SmartThingsCommunity/smartthings-cli/releases/download/v0.0.0-pre.34/smartthings-linux.zip | gunzip - | install /dev/stdin smartthings
+	curl -L https://github.com/SmartThingsCommunity/smartthings-cli/releases/download/v0.0.0-pre.36/smartthings-linux.zip | gunzip - | install /dev/stdin smartthings
 
 If needed, create a new distribution CHANNEL for these packages.
 

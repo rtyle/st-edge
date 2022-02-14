@@ -19,18 +19,22 @@ include private.mk
 # and cache driverId, name, version and packageKey for each in DRIVERS
 # which targets depend and rules use for their driverId.
 
-PACKAGES := $(addsuffix /package.zip, $(wildcard driver/*))
-DRIVERS  := $(addsuffix /driver     , $(wildcard driver/*))
+PACKAGES := $(addsuffix /package.zip	, $(wildcard driver/*))
+DRIVERS  := $(addsuffix /driver     	, $(wildcard driver/*))
+LOGCATS  := $(addsuffix /logcat		, $(wildcard driver/*))
 
 all: $(DRIVERS)
 
 clean:
 	rm -f $(PACKAGES) $(DRIVERS)
 
-driver/legrand-rflc/package.zip: $(shell find driver/legrand-rflc/package -follow -type f)
+driver/legrand-rflc/package.zip:	$(shell find driver/legrand-rflc/package	-follow -type f)
 	(cd $(basename $@); zip ../$(@F) $$(find . -follow) > /dev/null)
 
-driver/legrand-rflc/driver: driver/legrand-rflc/package.zip
+driver/sundial/package.zip:		$(shell find driver/sundial/package		-follow -type f)
+	(cd $(basename $@); zip ../$(@F) $$(find . -follow) > /dev/null)
+
+$(DRIVERS):: %/driver: %/package.zip
 	./smartthings edge:drivers:package --upload $< > /dev/null
 	./smartthings edge:drivers -y --indent=1 | egrep '^ (driverId|name|version|packageKey):' | paste - - - - | grep "packageKey: $$(basename $(@D))" | tr \\t \\n | sed 's/^\s*\w*:\s*//' > $@
 
@@ -46,5 +50,5 @@ uninstall: $(DRIVERS)
 		./smartthings edge:drivers:uninstall --hub=$(HUB) $$(head -1 $$driver);\
 	done
 
-logcat-legrand-rflc: driver/legrand-rflc/driver
+$(LOGCATS):: %/logcat: %/driver
 	./smartthings edge:drivers:logcat --hub-address=$(ADDRESS) $$(head -1 $<)

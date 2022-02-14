@@ -1,6 +1,6 @@
 # git
 
-	git clone git@github.com:rtyle/st-edge-legrand-rflc.git
+	git clone git@github.com:rtyle/st-edge.git
 
 # SmartThings hubs use lua 5.3
 
@@ -54,6 +54,10 @@
 		git submodule add git@github.com:rtyle/lua-lockbox.git modules/lockbox
 		(cd modules/lockbox; git checkout smartthings-edge)
 
+	# forked suncalc for lua port
+
+		git submodule add -b suncalc.lua https://github.com/rtyle/suncalc-lua.git modules/suncalc
+
 # lua_modules
 
 	# https://luarocks.org/modules/azdle/st
@@ -63,6 +67,10 @@
 		./luarocks install logface
 		./luarocks install luasec
 		./luarocks install luasocket
+
+	# modules that we will have to package
+
+		./luarocks install date
 
 	# code linter
 
@@ -96,9 +104,9 @@
 
 # smartthings-cli
 
-	# download an unzip latest smartthings-cli (v0.0.0-pre.34) release
+	# download an unzip latest smartthings-cli (v0.0.0-pre.36) release
 
-		curl -L https://github.com/SmartThingsCommunity/smartthings-cli/releases/download/v0.0.0-pre.34/smartthings-linux.zip | gunzip - | install /dev/stdin smartthings
+		curl -L https://github.com/SmartThingsCommunity/smartthings-cli/releases/download/v0.0.0-pre.36/smartthings-linux.zip | gunzip - | install /dev/stdin smartthings
 
 	# as of 2021-12-27, tokens created through
 	#	https://account.smartthings.com/tokens
