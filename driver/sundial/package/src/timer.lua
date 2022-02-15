@@ -154,8 +154,6 @@ return classify.single({
                 end
                 array[index] = time
             end
-
-            return ordered_next_times
         end
 
         -- populate self.refresh_method before we spawn our timer thread
