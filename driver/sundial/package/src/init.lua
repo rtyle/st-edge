@@ -45,7 +45,6 @@ local ready = {
     add = function(self, adapter)
         local device_network_id = adapter.device.device_network_id
         self.adapter[device_network_id] = adapter
-        try_create_device_semaphore:release()
         local pending_use = self.pending[device_network_id]
         if pending_use then
             for _, use in ipairs(pending_use) do
@@ -53,6 +52,7 @@ local ready = {
             end
             self.pending[device_network_id] = nil
         end
+        try_create_device_semaphore:release()
     end,
 
     remove = function(self, device_network_id)
@@ -108,8 +108,9 @@ local Adapter = classify.single({
     end,
 
     create = function(driver, device_network_id, model, label, parent_device_id)
+        log.debug("create?", device_network_id, model, label, parent_device_id)
         try_create_device_semaphore:acquire(function()
-            log.debug("create", device_network_id, model, label, parent_device_id)
+            log.debug("create!", device_network_id, model, label, parent_device_id)
             driver:try_create_device{
                 type = "LAN",
                 device_network_id = device_network_id,
@@ -134,7 +135,7 @@ Adapter.capability_handlers = {
 }
 
 Parent = classify.single({
-    ready = {},
+    list = {},
 
     start = function(self)
         self.timer = Timer(
@@ -161,7 +162,7 @@ Parent = classify.single({
         local it = device.device_network_id:gmatch("%S+")
         it()
         self.index = tonumber(it())
-        class.ready[self.index] = self
+        Parent.list[self.index] = self
         self.angle_method = {}
         self:start()
     end,
@@ -169,7 +170,7 @@ Parent = classify.single({
     removed = function(self)
         self:stop()
         self.angle_method = nil
-        classify.class(self).ready[self.index] = nil
+        Parent.list[self.index] = nil
         self.index = nil
         return Adapter.removed(self)
     end,
@@ -177,6 +178,10 @@ Parent = classify.single({
     info_changed = function(self, event, _)
         log.debug("info", self.device.device_network_id, self.device.st_store.label, event)
         self:restart()
+        self:refresh()
+        if self.device.st_store.preferences.new then
+            Parent.create(self.driver)
+        end
     end,
 
     angle_method_add = function(self, angle, method)
@@ -198,7 +203,9 @@ Parent = classify.single({
         self.timer:refresh(self.angle_method[angle])
     end,
 
-    create = function(driver, index)
+    create = function(driver)
+        local index = #Parent.list + 1
+        Parent.list[index] = false  -- placeholder until init'ed
         ready:acquire(
             Adapter.create(driver,
                 table.concat({NAMESPACE, index}, "\t"),
@@ -264,8 +271,9 @@ Child = classify.single({
 local driver = Driver("sundial", {
 
     discovery = function(driver, _, _)
-        if nil == next(Parent.ready) then
-            Parent.create(driver, 1)
+        log.debug("discovery", #Parent.list)
+        if 0 == #Parent.list then
+            Parent.create(driver)
         end
     end,
 
