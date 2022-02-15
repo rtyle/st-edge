@@ -31,25 +31,46 @@ local NAMESPACE     = "9db4ad4d-85e7-534a-a204-045d9bce50c4"
 
 local Parent, Child
 
--- ready uses a binary Semaphore to serialize next access to driver:try_create_device
--- until the previous access has been completed (device has been init'ed).
--- it remembers the last Parent so that a Child may use it.
+-- use a binary Semaphore to serialize access to driver:try_create_device() calls;
+-- otherwise, these requests tend to get ignored or not completed through lifecycle init.
+local try_create_device_semaphore = Semaphore()
+
+-- ready remembers adapters (by device_network_id) that have been init'ed for devices.
+-- ready:add does a try_create_device_semaphore:release
+-- and any pending use of this adapter is performed.
 local ready = {
-    semaphore = Semaphore(),
+    adapter = {},
+    pending = {},
 
-    parent = nil,
-
-    release = function(self, adapter)
-        if Parent == classify.class(adapter) then
-            self.parent = adapter
+    add = function(self, adapter)
+        local device_network_id = adapter.device.device_network_id
+        self.adapter[device_network_id] = adapter
+        try_create_device_semaphore:release()
+        local pending_use = self.pending[device_network_id]
+        if pending_use then
+            for _, use in ipairs(pending_use) do
+                use(adapter)
+            end
+            self.pending[device_network_id] = nil
         end
-        self.semaphore:release()
     end,
 
-    acquire = function(self, use)
-        self.semaphore:acquire(function()
-            use(self.parent)
-        end)
+    remove = function(self, device_network_id)
+        self.adapter[device_network_id] = nil
+    end,
+
+    acquire = function(self, device_network_id, use)
+        local adapter = self.adapter[device_network_id]
+        if adapter then
+            use(adapter)
+            return
+        end
+        local pending_use = self.pending[device_network_id]
+        if pending_use then
+            table.insert(pending_use, use)
+        else
+            self.pending[device_network_id] = {use}
+        end
     end,
 }
 
@@ -87,16 +108,19 @@ local Adapter = classify.single({
     end,
 
     create = function(driver, device_network_id, model, label, parent_device_id)
-        log.debug("create", device_network_id, model, label, parent_device_id)
-        driver:try_create_device{
-            type = "LAN",
-            device_network_id = device_network_id,
-            label = label,
-            profile = model,
-            manufacturer = "rtyle",
-            model = model,
-            parent_device_id = parent_device_id,
-        }
+        try_create_device_semaphore:acquire(function()
+            log.debug("create", device_network_id, model, label, parent_device_id)
+            driver:try_create_device{
+                type = "LAN",
+                device_network_id = device_network_id,
+                label = label,
+                profile = model,
+                manufacturer = "rtyle",
+                model = model,
+                parent_device_id = parent_device_id,
+            }
+        end)
+        return device_network_id
     end
 })
 -- Adapter subclasses cannot extend its capability_handlers by lua inheritance
@@ -147,7 +171,7 @@ Parent = classify.single({
         self.angle_method = nil
         classify.class(self).ready[self.index] = nil
         self.index = nil
-        Adapter.removed(self)
+        return Adapter.removed(self)
     end,
 
     info_changed = function(self, event, _)
@@ -175,15 +199,17 @@ Parent = classify.single({
     end,
 
     create = function(driver, index)
-        ready:acquire(function()
+        ready:acquire(
             Adapter.create(driver,
                 table.concat({NAMESPACE, index}, "\t"),
                 PARENT,
-                table.concat({LABEL, index}, " "))
-            for angle, _ in pairs(Timer.angles) do
-                Child.create(driver, index, angle)
+                table.concat({LABEL, index}, " ")),
+            function(parent)
+                for angle, _ in pairs(Timer.angles) do
+                    Child.create(driver, parent, angle)
+                end
             end
-        end)
+        )
     end,
 
     capability_handlers = {
@@ -195,24 +221,26 @@ Child = classify.single({
     _init = function(class, self, driver, device)
         classify.super(class):_init(self, driver, device)
         local it = device.device_network_id:gmatch("%S+")
-        it()
-        self.parent = Parent.ready[tonumber(it())]
+        local parent_device_network_id = table.concat({it(), it()}, "\t")
         self.angle = tonumber(it())
-        self.parent:angle_method_add(self.angle, function(dawn)
-            if dawn then
-                self.device:emit_event(capabilities.switch.switch.on())
-            else
-                self.device:emit_event(capabilities.switch.switch.off())
-            end
+        ready:acquire(parent_device_network_id, function(parent)
+            self.parent = parent
+            self.parent:angle_method_add(self.angle, function(dawn)
+                if dawn then
+                    self.device:emit_event(capabilities.switch.switch.on())
+                else
+                    self.device:emit_event(capabilities.switch.switch.off())
+                end
+            end)
+            self:refresh()
         end)
-        self:refresh()
     end,
 
     removed = function(self)
         self.parent:angle_method_remove(self.angle)
-        self.angle = nil
         self.parent = nil
-        Adapter.removed(self)
+        self.angle = nil
+        return Adapter.removed(self)
     end,
 
     refresh = function(self)
@@ -220,14 +248,12 @@ Child = classify.single({
         self.parent:refresh(self.angle)
     end,
 
-    create = function(driver, index, angle)
-        ready:acquire(function(parent)
-            Adapter.create(driver,
-                table.concat({NAMESPACE, index, angle}, "\t"),
-                CHILD,
-                table.concat({LABEL, index, angle}, " "),
-                parent.device.id)
-        end)
+    create = function(driver, parent, angle)
+        Adapter.create(driver,
+            table.concat({NAMESPACE, parent.index, angle}, "\t"),
+            CHILD,
+            table.concat({LABEL, parent.index, angle}, " "),
+            parent.device.id)
     end,
 
     capability_handlers = {
@@ -244,7 +270,7 @@ local driver = Driver("sundial", {
     end,
 
     lifecycle_handlers = {
-        removed = function(_, device) Adapter.call(device, REMOVED) end,
+        removed = function(_, device) ready:remove(Adapter.call(device, REMOVED)) end,
     },
 
     sub_drivers = {
@@ -252,7 +278,7 @@ local driver = Driver("sundial", {
             NAME = PARENT,
             can_handle = function(_, _, device) return device.st_store.model == PARENT end,
             lifecycle_handlers = {
-                init = function(driver, device) ready:release(Parent(driver, device)) end,
+                init = function(driver, device) ready:add(Parent(driver, device)) end,
                 infoChanged = function(_, device, event, args) Adapter.call(device, INFO_CHANGED, event, args) end,
             },
             capability_handlers = Parent.capability_handlers,
@@ -261,7 +287,7 @@ local driver = Driver("sundial", {
             NAME = CHILD,
             can_handle = function(_, _, device) return device.st_store.model == CHILD end,
             lifecycle_handlers = {
-                init = function(driver, device) ready:release(Child(driver, device)) end,
+                init = function(driver, device) ready:add(Child(driver, device)) end,
             },
             capability_handlers = Child.capability_handlers,
         },
