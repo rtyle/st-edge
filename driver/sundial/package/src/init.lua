@@ -161,8 +161,12 @@ Parent = classify.single({
     end,
 
     angle_method_remove = function(self, angle)
-        self.angle_method[angle] = nil
-        self:restart()
+        -- Parent is removed before each Child is removed.
+        -- guard against accessing destroyed Parent resources when Child calls this
+        if self.angle_method then
+            self.angle_method[angle] = nil
+            self:restart()
+        end
     end,
 
     refresh = function(self, angle)
