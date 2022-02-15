@@ -79,85 +79,94 @@ return classify.single({
         local nadir_key  = {NADIR_ANGLE , nadir_zenith_method, 1}
         local zenith_key = {ZENITH_ANGLE, nadir_zenith_method, 2}
 
+        local ordered_next_times = {}
+
+        local function get_times()
+            local this_time = epoch_time()
+
+            -- get non-empty set of next_times that are no smaller than this_time
+            local next_time = this_time
+            local next_times
+            while true do
+                local suncalc_get_times = suncalc.getTimes(next_time, latitude, longitude, height, times)
+
+                -- rewrite suncalc_get_times as next_times using our keys
+                -- and find the latest_time
+                next_times = {}
+                local latest_time = this_time - 1
+                for key, time in pairs(suncalc_get_times) do
+                    latest_time = math.max(latest_time, time)
+                    if "table" == type(key) then
+                        next_times[key] = time
+                    else
+                        -- replace suncalc NADIR_KEY/ZENITH_KEY with our nadir_key/zenith_key
+                        if nadir_zenith_method then
+                            if NADIR_KEY == key then
+                                next_times[nadir_key ] = time
+                            elseif ZENITH_KEY == key then
+                                next_times[zenith_key] = time
+                            end
+                        end
+                    end
+                end
+
+                if this_time <= latest_time then break end
+
+                -- this_time > latest_time
+                -- try again with next_time a day after this zenith
+                next_time = suncalc_get_times[ZENITH_KEY] + 24 * 60 * 60
+            end
+
+            -- split/order next_times relative to this_time
+            local ordered_past_times = {}
+            for key, time in pairs(next_times) do
+                if this_time > time then
+                    table.insert(ordered_past_times, {time, key})
+                else
+                    table.insert(ordered_next_times, {time, key})
+                end
+            end
+            table.sort(ordered_past_times, function(a, b) return a[1] < b[1] end)
+            table.sort(ordered_next_times, function(a, b) return a[1] < b[1] end)
+
+            -- log
+            for _, value in ipairs(ordered_past_times) do
+                local time, key = table.unpack(value)
+                local angle, _, index = table.unpack(key)
+                log.debug("timer", name, ">", local_iso_time(time), angle, 1 == index)
+            end
+            log.debug("timer", name, "-", local_iso_time(this_time))
+            for _, value in ipairs(ordered_next_times) do
+                local time, key = table.unpack(value)
+                local angle, _, index = table.unpack(key)
+                log.debug("timer", name, "<", local_iso_time(time), angle, 1 == index)
+            end
+
+            -- build self.refresh_method set indexed by method,
+            -- each of which is associated with a dawn, dusk time pair
+            self.refresh_method = {}
+            for key, time in pairs(next_times) do
+                local _, method, index = table.unpack(key)
+                local array = self.refresh_method[method]
+                if not array then
+                    array = {}
+                    self.refresh_method[method] = array
+                end
+                array[index] = time
+            end
+
+            return ordered_next_times
+        end
+
+        -- populate self.refresh_method before we spawn our timer thread
+        -- so that refresh can be called immediately
+        get_times()
+
         -- timer thread
         cosock.spawn(function()
             log.debug("timer", name, "start")
 
             while self.run do
-                local this_time = epoch_time()
-
-                -- get non-empty set of next_times that are no smaller than this_time
-                local next_time = this_time
-                local next_times
-                while true do
-                    local suncalc_get_times = suncalc.getTimes(next_time, latitude, longitude, height, times)
-
-                    -- rewrite suncalc_get_times as next_times using our keys
-                    -- and find the latest_time
-                    next_times = {}
-                    local latest_time = this_time - 1
-                    for key, time in pairs(suncalc_get_times) do
-                        latest_time = math.max(latest_time, time)
-                        if "table" == type(key) then
-                            next_times[key] = time
-                        else
-                            -- replace suncalc NADIR_KEY/ZENITH_KEY with our nadir_key/zenith_key
-                            if nadir_zenith_method then
-                                if NADIR_KEY == key then
-                                    next_times[nadir_key ] = time
-                                elseif ZENITH_KEY == key then
-                                    next_times[zenith_key] = time
-                                end
-                            end
-                        end
-                    end
-
-                    if this_time <= latest_time then break end
-
-                    -- this_time > latest_time
-                    -- try again with next_time a day after this zenith
-                    next_time = suncalc_get_times[ZENITH_KEY] + 24 * 60 * 60
-                end
-
-                -- split/order next_times relative to this_time
-                local ordered_past_times = {}
-                local ordered_next_times = {}
-                for key, time in pairs(next_times) do
-                    if this_time > time then
-                        table.insert(ordered_past_times, {time, key})
-                    else
-                        table.insert(ordered_next_times, {time, key})
-                    end
-                end
-                table.sort(ordered_past_times, function(a, b) return a[1] < b[1] end)
-                table.sort(ordered_next_times, function(a, b) return a[1] < b[1] end)
-
-                -- log
-                for _, value in ipairs(ordered_past_times) do
-                    local time, key = table.unpack(value)
-                    local angle, _, index = table.unpack(key)
-                    log.debug("timer", name, ">", local_iso_time(time), angle, 1 == index)
-                end
-                log.debug("timer", name, "-", local_iso_time(this_time))
-                for _, value in ipairs(ordered_next_times) do
-                    local time, key = table.unpack(value)
-                    local angle, _, index = table.unpack(key)
-                    log.debug("timer", name, "<", local_iso_time(time), angle, 1 == index)
-                end
-
-		        -- build self.refresh_method set indexed by method,
-		        -- each of which is associated with a dawn, dusk time pair
-                self.refresh_method = {}
-                for key, time in pairs(next_times) do
-                    local _, method, index = table.unpack(key)
-                    local array = self.refresh_method[method]
-                    if not array then
-                        array = {}
-                        self.refresh_method[method] = array
-                    end
-                    array[index] = time
-                end
-
                 while self.run and 0 < #ordered_next_times do
                     local time, key = table.unpack(table.remove(ordered_next_times, 1))
                     local angle, method, index = table.unpack(key)
@@ -168,6 +177,9 @@ return classify.single({
                         log.debug("timer", name, "trip", local_iso_time(epoch_time()), angle, dawn)
                         method(dawn)
                     end
+                end
+                if self.run then
+                    get_times()
                 end
             end
 
