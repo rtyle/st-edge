@@ -46,6 +46,9 @@ Give the system time to create your first Sundial (Sundial 1) and its switches.
 Expect a bridge device to be created in SmartThings for each Sundial
 and a device with Switch capabilities for each tripped angle.
 
+Use the settings of the Sundial bridge device to specify your location (Latitude, Longitude and Height).
+To create another Sundial, set the New setting of an existing one to true and then back to false.
+
 The on/off status of each switch is only affected by the configured location and solar angle.
 The switches cannot be manipulated otherwise.
 
