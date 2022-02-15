@@ -169,7 +169,7 @@ return classify.single({
                     local time, key = table.unpack(table.remove(ordered_next_times, 1))
                     local angle, method, index = table.unpack(key)
                     local dawn = 1 == index
-		            local timeout = math.max(0, time - epoch_time())
+                    local timeout = math.max(0, time - epoch_time())
                     log.debug("timer", name, "wait", local_iso_time(time), angle, dawn, delta_time(timeout))
                     if not cosock.socket.select({receiver}, {}, timeout) then
                         log.debug("timer", name, "trip", local_iso_time(epoch_time()), angle, dawn)
