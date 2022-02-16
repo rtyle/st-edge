@@ -10,27 +10,27 @@ This runs on your SmartThings hub without any external dependencies.
 
 A Sundial behaves like a 24-hour mechanical timer with programmable on/off trippers except that
 instead of controlling one switch with many trippers
-it controls one switch for each configured solar angle relative to the horizon.
+it controls one switch for each configured solar angle.
 
-For each configured angle, its associated switch is
+For each configured numeric angle, its associated switch is
 
-* tripped on when the sun reaches that angle relative to dawn and
-* tripped off when the sun reaches that angle relative to dusk.
+* tripped on when the sun reaches the altitude angle relative to dawn and
+* tripped off when the sun reaches the altitude angle relative to dusk.
 
-An angle of -90 is treated the same as an angle of 90 and will control one switch that will
+An angle of "morning" will control one switch that will
 
-* trip on when the sun reaches its nadir (solar midnight) and
-* trip off when the sun reaches its zenith (solar noon).
+* trip on when the sun reaches the nadir (solar midnight) azimuth angle (-180°) and
+* trip off when the sun reaches the zenith (solar noon) azimuth angle (0°)
 
 The following angles are configured by default
 
-* -90|90	Nadir & Zenith
-* -18		Astronomical twilight
-* -12		Nautical twilight
-* -6		Civil twilight
-* -0.833	Sunrise & Sunset
-* -0.3		Sunrise end & Sunset start
-* 6		Golden hour
+* **morning** Nadir to zenith [solar azimuth angle](https://en.wikipedia.org/wiki/Solar_azimuth_angle)s; otherwise, numeric [solar altitude angle](https://en.wikipedia.org/wiki/Solar_zenith_angle)s for
+* **-18**		[Astronomical twilight](https://en.wikipedia.org/wiki/Twilight#Astronomical_twilight)
+* **-12**		[Nautical twilight](https://en.wikipedia.org/wiki/Twilight#Nautical_twilight)
+* **-6**		[Civil twilight](https://en.wikipedia.org/wiki/Twilight#Civil_twilight)
+* **-0.833**	[Sunrise](https://en.wikipedia.org/wiki/Sunrise) & [Sunset](https://en.wikipedia.org/wiki/Sunset)
+* **-0.3**		Sunrise end & Sunset start
+* **6**		[Golden hour](https://en.wikipedia.org/wiki/Golden_hour_(photography))
 
 These angles are described by the original
 [suncalc](https://github.com/mourner/suncalc)
@@ -47,7 +47,11 @@ Expect a bridge device to be created in SmartThings for each Sundial
 and a device with Switch capabilities for each tripped angle.
 
 Use the settings of the Sundial bridge device to specify your location (Latitude, Longitude and Height).
-To create another Sundial, set the New setting of an existing one to true and then back to false.
+To create another switch on the sundial,
+specify its numeric solar altitude **Angle** (between -90 and 90) or
+specify the string **morning** for a switch that turns on at solar midnight and off at solar noon.
+If the switch already exists, another will not be created.
+To create another Sundial, set the **sundial** setting of an existing one to true and then back to false.
 
 The on/off status of each switch is only affected by the configured location and solar angle.
 The switches cannot be manipulated otherwise.
