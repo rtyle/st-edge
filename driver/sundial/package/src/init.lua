@@ -179,7 +179,16 @@ Parent = classify.single({
         log.debug("info", self.device.device_network_id, self.device.st_store.label, event)
         self:restart()
         self:refresh()
-        if self.device.st_store.preferences.new then
+        local angle = self.device.st_store.preferences.angle:lower()
+        if not self.angle_method[angle] then
+            local number = tonumber(angle)
+            if Timer.MORNING == angle or -90 <= number and number <= 90 then
+                Child.create(self.driver, self, angle)
+            else
+                log.warn("info", self.device.device_network_id, self.device.st_store.label, "angle", angle)
+            end
+        end
+        if self.device.st_store.preferences.sundial then
             Parent.create(self.driver)
         end
     end,
@@ -229,7 +238,7 @@ Child = classify.single({
         classify.super(class):_init(self, driver, device)
         local it = device.device_network_id:gmatch("%S+")
         local parent_device_network_id = table.concat({it(), it()}, "\t")
-        self.angle = tonumber(it())
+        self.angle = it()
         ready:acquire(parent_device_network_id, function(parent)
             self.parent = parent
             self.parent:angle_method_add(self.angle, function(dawn)

@@ -21,13 +21,15 @@ local function delta_time(time)
 end
 
 -- suncalc.getTimes() results always include these
-local NADIR_KEY     = "nadir"
-local ZENITH_KEY     = "solarNoon"
-local NADIR_ANGLE   = -90
-local ZENITH_ANGLE  = 90
+local NADIR     = "nadir"
+local ZENITH    = "solarNoon"
+
+local MORNING   = "morning"
+
+local DAY       = 24 * 60 * 60
 
 -- set of angles explicit in suncalc.times and implied by suncalc.getTimes results
-local angles = {[ZENITH_ANGLE] = true}
+local angles = {[MORNING] = true}
 for _, angle__ in ipairs(suncalc.times) do
     local angle, _, _ = table.unpack(angle__)
     angles[angle] = true
@@ -35,16 +37,19 @@ end
 
 -- A Timer is like a 24 hour mechanical timer with settable on and off trippers.
 -- Instead of many trippers controlling one switch during the hours of each day,
--- independent on/off pairs of trippers are made for solar angles relative to the horizon.
+-- independent on/off pairs of trippers are set for solar angles.
 return classify.single({
-    angles = angles,    -- export
+    -- export class constants
+    MORNING = MORNING,
+    angles  = angles,
 
-    -- angle_method is a set of angles, each of which is associated with a method.
-    -- method(true ) is called when we trip on the angle relative to dawn.
-    -- method(false) is called when we trip on the angle relative to dusk.
-    -- for an angle of -90 or 90,
-    -- method(true ) is called when we trip on the nadir  angle and
-    -- method(false) is called when we trip on the zenith angle.
+    -- angle_method is a set of solar angles, each of which is associated with a method.
+    -- for a numeric angle,
+    -- method(true ) is called when we trip on this solar altitude relative to dawn.
+    -- method(false) is called when we trip on this solar altitude relative to dusk.
+    -- for a string angle of MORNING,
+    -- method(true ) is called when we trip on the nadir  azimuth angle (-180) and
+    -- method(false) is called when we trip on the zenith azimuth angle (0).
     -- a self.refresh_method table is maintained to support our refresh method
     -- at which time one or all methods will be called/refreshed.
     _init = function(_, self, name, latitude, longitude, height, angle_method)
@@ -54,7 +59,7 @@ return classify.single({
         angle_method    = angle_method  or {}
 
         local empty = nil == next(angle_method)
-        log.debug("timer", name, latitude, longitude, height, not empty)
+        log.debug("timer", name, "init", latitude, longitude, height, not empty)
         if empty then return end
 
         -- for refresh()
@@ -67,21 +72,23 @@ return classify.single({
         self.run = true -- stop() sets it to false
 
         -- construct times from angle_method
-        local nadir_zenith_method
+        local morning_method
         local times = {}
         for angle, method in pairs(angle_method) do
-            assert(-90 <= angle and angle <= 90, "angle range error: " .. angle)
-            if NADIR_ANGLE == angle or ZENITH_ANGLE == angle then
-                nadir_zenith_method = method
-            else
+            local number = tonumber(angle)
+            if number then
+                assert(-90 <= number and number <= 90, "solar altitude angle range error: " .. number)
                 -- angle, dawn key, dusk key
                 table.insert(times, {angle, {angle, method, 1}, {angle, method, 2}})
+            else
+                assert(MORNING == angle, "solar azimuth angle range error: " .. angle)
+                morning_method = method
             end
         end
-        local nadir_key  = {NADIR_ANGLE , nadir_zenith_method, 1}
-        local zenith_key = {ZENITH_ANGLE, nadir_zenith_method, 2}
+        local nadir  = {MORNING, morning_method, 1}
+        local zenith = {MORNING, morning_method, 2}
 
-        local ordered_next_times = {}
+        local ordered_next_times
 
         local function get_times()
             local this_time = epoch_time()
@@ -97,16 +104,19 @@ return classify.single({
                 next_times = {}
                 local latest_time = this_time - 1
                 for key, time in pairs(suncalc_get_times) do
+                    if time ~= time then    -- NaN (there is no time for this key)
+                        time = 0            -- pretend it was way before this_time
+                    end
                     latest_time = math.max(latest_time, time)
                     if "table" == type(key) then
                         next_times[key] = time
                     else
-                        -- replace suncalc NADIR_KEY/ZENITH_KEY with our nadir_key/zenith_key
-                        if nadir_zenith_method then
-                            if NADIR_KEY == key then
-                                next_times[nadir_key ] = time
-                            elseif ZENITH_KEY == key then
-                                next_times[zenith_key] = time
+                        -- replace suncalc NADIR/ZENITH with our nadir/zenith
+                        if morning_method then
+                            if NADIR == key then
+                                next_times[nadir ] = time
+                            elseif ZENITH == key then
+                                next_times[zenith] = time
                             end
                         end
                     end
@@ -116,10 +126,11 @@ return classify.single({
 
                 -- this_time > latest_time
                 -- try again with next_time a day after this zenith
-                next_time = suncalc_get_times[ZENITH_KEY] + 24 * 60 * 60
+                next_time = suncalc_get_times[ZENITH] + DAY
             end
 
             -- split/order next_times relative to this_time
+            ordered_next_times = {}
             local ordered_past_times = {}
             for key, time in pairs(next_times) do
                 if this_time > time then
@@ -167,15 +178,24 @@ return classify.single({
             log.debug("timer", name, "start")
 
             while self.run do
-                while self.run and 0 < #ordered_next_times do
-                    local time, key = table.unpack(table.remove(ordered_next_times, 1))
-                    local angle, method, index = table.unpack(key)
-                    local dawn = 1 == index
-                    local timeout = math.max(0, time - epoch_time())
-                    log.debug("timer", name, "wait", local_iso_time(time), angle, dawn, delta_time(timeout))
-                    if not cosock.socket.select({receiver}, {}, timeout) then
-                        log.debug("timer", name, "trip", local_iso_time(epoch_time()), angle, dawn)
-                        method(dawn)
+                if 0 == #ordered_next_times then
+                    -- wait for a half day
+                    local timeout = DAY / 2
+                    local time = epoch_time() + timeout
+                    log.debug("timer", name, "wait", local_iso_time(time), "-", "-", delta_time(timeout))
+                    cosock.socket.select({receiver}, {}, timeout)
+                else
+                    -- wait for each ordered next time for the rest of today
+                    while self.run and 0 < #ordered_next_times do
+                        local time, key = table.unpack(table.remove(ordered_next_times, 1))
+                        local angle, method, index = table.unpack(key)
+                        local dawn = 1 == index
+                        local timeout = math.max(0, time - epoch_time())
+                        log.debug("timer", name, "wait", local_iso_time(time), angle, dawn, delta_time(timeout))
+                        if not cosock.socket.select({receiver}, {}, timeout) then
+                            log.debug("timer", name, "trip", local_iso_time(epoch_time()), angle, dawn)
+                            method(dawn)
+                        end
                     end
                 end
                 if self.run then
