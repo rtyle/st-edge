@@ -18,7 +18,7 @@ For each configured numeric angle, its associated switch is
 * tripped off when the sun reaches the altitude angle relative to the dusk horizon.
 
 Depending on your location, the day of the year and the configured angle,
-it is posssible that sun will not reach that altitude during the day so the switch will not trip.
+it is posssible that sun will not reach that altitude during the day so the switch will not trip at all.
 
 An angle of "morning" will control one switch that will
 
