@@ -14,8 +14,8 @@ it controls one switch for each configured solar angle.
 
 For each configured numeric angle, its associated switch is
 
-* tripped on when the sun reaches the altitude angle relative to dawn and
-* tripped off when the sun reaches the altitude angle relative to dusk.
+* tripped on when the sun reaches the altitude angle relative to the dawn horizon and
+* tripped off when the sun reaches the altitude angle relative to the dusk horizon.
 
 An angle of "morning" will control one switch that will
 
