@@ -17,6 +17,9 @@ For each configured numeric angle, its associated switch is
 * tripped on when the sun reaches the altitude angle relative to the dawn horizon and
 * tripped off when the sun reaches the altitude angle relative to the dusk horizon.
 
+Depending on your location, the day of the year and the configured angle,
+it is posssible that sun will not reach that altitude during the day so the switch will not trip.
+
 An angle of "morning" will control one switch that will
 
 * trip on when the sun reaches the nadir (solar midnight) azimuth angle (-180°) and
