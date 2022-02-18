@@ -182,7 +182,7 @@ Parent = classify.single({
         local angle = self.device.st_store.preferences.angle:lower()
         if not self.angle_method[angle] then
             local number = tonumber(angle)
-            if Timer.MORNING == angle or -90 <= number and number <= 90 then
+            if Timer.MORNING == angle or (number and -90 <= number and number <= 90) then
                 Child.create(self.driver, self, angle)
             else
                 log.warn("info", self.device.device_network_id, self.device.st_store.label, "angle", angle)

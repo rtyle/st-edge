@@ -41,7 +41,7 @@ preferences:
     preferenceType: string
     definition:
       stringType: text
-      default: morning
+      default: 12
   - name: sundial
     title: Sundial
     description: "Create a new sundial"
