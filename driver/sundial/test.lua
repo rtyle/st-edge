@@ -39,12 +39,16 @@ local Child = classify.single({
             print(angle, bool)
         end
         parent:add(self)
+        parent.timer:refresh(self.method)
     end
 })
 
 local parent = Parent("LA", 34.052235, -118.243683, 0)
 
 for angle, _ in pairs(Timer.angles) do
+    Child(parent, angle)
+end
+for _, angle in ipairs{-90, -60, -45, -30, 30, 45, 60, 90} do
     Child(parent, angle)
 end
 

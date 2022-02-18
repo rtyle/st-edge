@@ -79,14 +79,14 @@ return classify.single({
             if number then
                 assert(-90 <= number and number <= 90, "solar altitude angle range error: " .. number)
                 -- angle, dawn key, dusk key
-                table.insert(times, {angle, {angle, method, 1}, {angle, method, 2}})
+                table.insert(times, {angle, {angle, method, 2}, {angle, method, 3}})
             else
                 assert(MORNING == angle, "solar azimuth angle range error: " .. angle)
                 morning_method = method
             end
         end
-        local nadir  = {MORNING, morning_method, 1}
-        local zenith = {MORNING, morning_method, 2}
+        local nadir  = {MORNING, morning_method, 2}
+        local zenith = {MORNING, morning_method, 3}
 
         local ordered_next_times
 
@@ -94,10 +94,11 @@ return classify.single({
             local this_time = epoch_time()
 
             -- get non-empty set of next_times that are no smaller than this_time
+            local suncalc_get_times
             local next_time = this_time
             local next_times
             while true do
-                local suncalc_get_times = suncalc.getTimes(next_time, latitude, longitude, height, times)
+                suncalc_get_times = suncalc.getTimes(next_time, latitude, longitude, height, times)
 
                 -- rewrite suncalc_get_times as next_times using our keys
                 -- and find the latest_time
@@ -105,7 +106,7 @@ return classify.single({
                 local latest_time = this_time - 1
                 for key, time in pairs(suncalc_get_times) do
                     if time ~= time then    -- NaN (there is no time for this key)
-                        time = 0            -- pretend it was way before this_time
+                        time = 0            -- fabricate to sort in the past, may change this later
                     end
                     latest_time = math.max(latest_time, time)
                     if "table" == type(key) then
@@ -157,15 +158,37 @@ return classify.single({
 
             -- build self.refresh_method set indexed by method,
             -- each of which is associated with a dawn, dusk time pair
+            -- self:refresh will call method(true) when the current time is between these;
+            -- otherwise it will call method(false).
             self.refresh_method = {}
             for key, time in pairs(next_times) do
-                local _, method, index = table.unpack(key)
+                local angle, method, index = table.unpack(key)
                 local array = self.refresh_method[method]
                 if not array then
-                    array = {}
+                    array = {angle}
                     self.refresh_method[method] = array
                 end
                 array[index] = time
+            end
+            -- for angles for which there was no dusk time today, we have said that time was before today (0) so
+            -- self:refresh will call method(false) all day.
+            -- if the mean solar position is greater than such an angle, say its dusk time is after today so
+            -- self:refresh will call method(true ) all day.
+            local mean = nil
+            for method, angle_dawn_dusk in pairs(self.refresh_method) do
+                local angle, dawn, dusk = table.unpack(angle_dawn_dusk)
+                if 0 == dusk then
+                    if not mean then
+                        mean = (
+                            suncalc.getPosition(suncalc_get_times[NADIR ], latitude, longitude).altitude +
+                            suncalc.getPosition(suncalc_get_times[ZENITH], latitude, longitude).altitude
+                        ) / 2
+                    end
+                    if (angle < mean) then
+                        dusk = next_time + DAY  -- self:refresh will call method(true) all day
+                    end
+                end
+                self.refresh_method[method] = {dawn, dusk}
             end
         end
 
@@ -221,12 +244,12 @@ return classify.single({
                 local dawn_dusk = self.refresh_method[method]
                 if dawn_dusk then
                     local dawn, dusk = table.unpack(dawn_dusk)
-                    method(time >= dawn and time < dusk)
+                    method(dawn <= time and time < dusk)
                 end
             else
                 for each_method, dawn_dusk in pairs(self.refresh_method) do
                     local dawn, dusk = table.unpack(dawn_dusk)
-                    each_method(time >= dawn and time < dusk)
+                    each_method(dawn <= time and time < dusk)
                 end
             end
         end
