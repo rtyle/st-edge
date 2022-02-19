@@ -14,20 +14,20 @@ it controls one switch for each configured solar angle.
 
 For each configured numeric angle, its associated switch is
 
-* tripped on when the sun reaches the altitude angle relative to the dawn horizon and
-* tripped off when the sun reaches the altitude angle relative to the dusk horizon.
+* tripped on when the sun reaches the solar altitude angle relative to the dawn horizon and
+* tripped off when the sun reaches the solar altitude angle relative to the dusk horizon.
 
 Depending on your location, the day of the year and the configured angle,
-it is posssible that sun will not reach that altitude during the day so the switch will not trip at all.
+it is posssible that sun will not reach that solar altitude angle during the day so the switch will not trip at all.
 
 An angle of "morning" will control one switch that will
 
-* trip on when the sun reaches the nadir (solar midnight) azimuth angle (-180°) and
-* trip off when the sun reaches the zenith (solar noon) azimuth angle (0°)
+* trip on when the sun reaches its lower culmination (at solar midnight when the solar altitude angle is closest to observer’s nadir) and
+* trip off when the sun reaches its upper culmination (at solar noon when the solar altitude angle is closest to observer’s zenith)
 
 The following angles are configured by default
 
-* **morning** Nadir to zenith [solar azimuth angle](https://en.wikipedia.org/wiki/Solar_azimuth_angle)s; otherwise, numeric [solar altitude angle](https://en.wikipedia.org/wiki/Solar_zenith_angle)s for
+* **morning** Lower to upper [culmination](https://en.wikipedia.org/wiki/Culmination)s; otherwise, numeric [solar altitude angle](https://en.wikipedia.org/wiki/Solar_zenith_angle)s for
 * **-18**		[Astronomical twilight](https://en.wikipedia.org/wiki/Twilight#Astronomical_twilight)
 * **-12**		[Nautical twilight](https://en.wikipedia.org/wiki/Twilight#Nautical_twilight)
 * **-6**		[Civil twilight](https://en.wikipedia.org/wiki/Twilight#Civil_twilight)
