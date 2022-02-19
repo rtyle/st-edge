@@ -96,10 +96,6 @@ local Adapter = classify.single({
         if adapter then
             return adapter[method](adapter, ...)
         end
-        -- we will end up here after SmartThings hub reboot
-        -- when the parent adapter (for the controller) is refreshed (on init)
-        -- but its child adapters have not yet been created.
-        log.warn(method, device.device_network_id, device.st_store.label)
     end,
 
     refresh = function(self)
