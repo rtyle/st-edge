@@ -239,9 +239,9 @@ Child = classify.single({
             self.parent = parent
             self.parent:angle_method_add(self.angle, function(dawn)
                 if dawn then
-                    self.device:emit_event(capabilities.switch.switch.on())
+                    self.device:emit_event(capabilities.presenceSensor.presence.present())
                 else
-                    self.device:emit_event(capabilities.switch.switch.off())
+                    self.device:emit_event(capabilities.presenceSensor.presence.not_present())
                 end
             end)
             self:refresh()

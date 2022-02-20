@@ -4,7 +4,7 @@ components:
   capabilities:
   - id: refresh
     version: 1
-  - id: switch
+  - id: presenceSensor
     version: 1
   categories:
-  - name: Switch
+  - name: PresenceSensor

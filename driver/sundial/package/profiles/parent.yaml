@@ -36,7 +36,7 @@ preferences:
       default: 0
   - name: angle
     title: Angle
-    description: "Solar angle for a new switch"
+    description: "Solar angle for a new presence sensor"
     required: false
     preferenceType: string
     definition:
