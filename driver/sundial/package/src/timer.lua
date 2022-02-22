@@ -147,13 +147,13 @@ return classify.single({
             for _, value in ipairs(ordered_past_times) do
                 local time, key = table.unpack(value)
                 local angle, _, index = table.unpack(key)
-                log.debug("timer", name, ">", local_iso_time(time), angle, 1 == index)
+                log.debug("timer", name, ">", local_iso_time(time), angle, 2 == index)
             end
             log.debug("timer", name, "-", local_iso_time(this_time))
             for _, value in ipairs(ordered_next_times) do
                 local time, key = table.unpack(value)
                 local angle, _, index = table.unpack(key)
-                log.debug("timer", name, "<", local_iso_time(time), angle, 1 == index)
+                log.debug("timer", name, "<", local_iso_time(time), angle, 2 == index)
             end
 
             -- build self.refresh_method set indexed by method,
@@ -212,7 +212,7 @@ return classify.single({
                     while self.run and 0 < #ordered_next_times do
                         local time, key = table.unpack(table.remove(ordered_next_times, 1))
                         local angle, method, index = table.unpack(key)
-                        local dawn = 1 == index
+                        local dawn = 2 == index
                         local timeout = math.max(0, time - epoch_time())
                         log.debug("timer", name, "wait", local_iso_time(time), angle, dawn, delta_time(timeout))
                         if not cosock.socket.select({receiver}, {}, timeout) then
