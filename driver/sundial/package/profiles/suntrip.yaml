@@ -1,4 +1,4 @@
-name: child
+name: suntrip
 components:
 - id: main
   capabilities:

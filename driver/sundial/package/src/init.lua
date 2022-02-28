@@ -11,8 +11,8 @@ local classify      = require "util.classify"
 local Semaphore     = require "util.semaphore"
 
 -- device models/types, sub_drivers
-local PARENT        = "parent"
-local CHILD         = "child"
+local PARENT        = "sundial"
+local CHILD         = "suntrip"
 
 -- Adapter callback support from device
 local ADAPTER       = "adapter"
