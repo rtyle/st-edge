@@ -34,6 +34,9 @@ driver/legrand-rflc/package.zip:	$(shell find driver/legrand-rflc/package	-follo
 driver/sundial/package.zip:		$(shell find driver/sundial/package		-follow -type f)
 	(cd $(basename $@); zip ../$(@F) $$(find . -follow) > /dev/null)
 
+driver/bug/package.zip:			$(shell find driver/bug/package			-follow -type f)
+	(cd $(basename $@); zip ../$(@F) $$(find . -follow) > /dev/null)
+
 $(DRIVERS):: %/driver: %/package.zip
 	./smartthings edge:drivers:package --upload $< > /dev/null
 	./smartthings edge:drivers -y --indent=1 | egrep '^ (driverId|name|version|packageKey):' | paste - - - - | grep "packageKey: $$(basename $(@D))" | tr \\t \\n | sed 's/^\s*\w*:\s*//' > $@

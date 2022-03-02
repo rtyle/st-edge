@@ -11,3 +11,4 @@
 **/package.zip
 driver/legrand-rflc/driver
 driver/sundial/driver
+driver/bug/driver
