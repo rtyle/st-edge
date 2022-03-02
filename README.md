@@ -2,6 +2,7 @@
 
 [SmartThings Edge Drivers](https://community.smartthings.com/t/preview-smartthings-managed-edge-device-drivers)
 
+* [bug](https://github.com/rtyle/st-edge/blob/master/driver/bug/README.md)
 * [legrand-rflc](https://github.com/rtyle/st-edge/blob/master/driver/legrand-rflc/README.md)
 * [sundial](https://github.com/rtyle/st-edge/blob/master/driver/sundial/README.md)
 
