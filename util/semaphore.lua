@@ -1,4 +1,4 @@
-local classify = require "util.classify"
+local classify = require "classify"
 
 -- https://en.wikipedia.org/wiki/Semaphore_(programming)
 -- borrowing Java operation names (acquire and release).

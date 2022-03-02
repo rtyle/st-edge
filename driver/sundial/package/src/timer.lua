@@ -6,7 +6,7 @@ local log       = require "log"
 local date      = require "date"
 local suncalc   = require "suncalc"
 
-local classify  = require "util.classify"
+local classify  = require "classify"
 
 local function epoch_time()
     return date.diff(date(true), date.epoch()):spanseconds()

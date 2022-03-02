@@ -1,4 +1,4 @@
-local classify = require "util.classify"
+local classify = require "classify"
 
 -- Event emitter pattern implementation.
 return classify.single({

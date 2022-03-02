@@ -7,8 +7,8 @@ local log           = require "log"
 
 local Timer         = require "timer"
 
-local classify      = require "util.classify"
-local Semaphore     = require "util.semaphore"
+local classify      = require "classify"
+local Semaphore     = require "semaphore"
 
 -- device models/types, sub_drivers
 local PARENT        = "sundial"

@@ -1,4 +1,4 @@
-local classify = require "util.classify"
+local classify = require "classify"
 
 -- Reader of spooled chunks from given read function.
 return classify.single({
@@ -72,5 +72,13 @@ return classify.single({
     read_until = function(self, terminator)
         assert(1 == #terminator)
         return self:_read_until(terminator, 1)
+    end,
+
+    read_line = function(self, line)
+        line = (line or "") .. self:read_until("\n")
+        if "\r" == line:sub(-2, -2) then
+            return line:sub(1, -3)
+        end
+        return self:read_line(line)
     end,
 })

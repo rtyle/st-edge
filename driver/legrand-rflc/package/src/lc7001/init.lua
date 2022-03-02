@@ -13,10 +13,10 @@ local ECBMode       = require "lockbox.cipher.mode.ecb"
 local ZeroPadding   = require "lockbox.padding.zero"
 local AES128Cipher  = require "lockbox.cipher.aes128"
 
-local Emitter       = require "util.emitter"
-local Reader        = require "util.reader"
-local classify      = require "util.classify"
-local resolve       = require "util.resolve"
+local Emitter       = require "emitter"
+local Reader        = require "reader"
+local classify      = require "classify"
+local resolve       = require "resolve"
 
 --[[
 we should not have to define lua socket related error constants!

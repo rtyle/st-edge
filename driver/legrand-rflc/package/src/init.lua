@@ -8,8 +8,8 @@ local log           = require "log"
 
 local lc7001        = require "lc7001"
 
-local classify      = require "util.classify"
-local Semaphore     = require "util.semaphore"
+local classify      = require "classify"
+local Semaphore     = require "semaphore"
 
 -- device models/types, sub_drivers
 local PARENT        = "lc7001"

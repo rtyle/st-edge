@@ -2,7 +2,7 @@
 
 local cosock    = require "cosock"
 
-local classify  = require "util.classify"
+local classify  = require "classify"
 local Timer     = require "timer"
 
 local Parent = classify.single({
