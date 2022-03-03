@@ -8,7 +8,5 @@
 /src/lockbox
 /st-edge-legrand-rflc-dev-1.rockspec
 /tools
-**/package.zip
-driver/legrand-rflc/driver
-driver/sundial/driver
-driver/bug/driver
+/driver/**/package.zip
+/driver/**/driver
