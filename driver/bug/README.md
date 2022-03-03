@@ -35,7 +35,7 @@ DEBUG Bug  create!	a455007a-daf1-51d4-b36c-1b5e6dc9ac5f	#	child	Bug #	74510a53-7
 the `device_network_id` matches that of the parent with a # suffix, the device model/type/sub_driver is “child”, the label is “Bug #” and the parent is specified by its UUID.
 
 On subsequent discovery attempts, the log will show how many devices were created.
-But not for this bug, one would/should expect …
+If not for this bug, one would/should expect …
 
 ```
 DEBUG Bug  discovery	101
