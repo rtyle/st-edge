@@ -20,7 +20,7 @@ Later, discovery can be reattempted to see how many devices were actually create
 
 `create?` reflects the code’s attempt to acquire a counting `try_create_device_semaphore` that limits access to the `try_create_device` “resource” to 100 acquisitions.
 `create!` reflects the code’s acquisition of such and the impending `try_create_device` call.
-After `create?` (and `create!`) is the `device_network_id` (namespace UUID a455007a-daf1-51d4-b36c-1b5e6dc9ac5f), device model/type/sub_driver (parent) and label (Bug).
+After each is the `device_network_id` (namespace UUID a455007a-daf1-51d4-b36c-1b5e6dc9ac5f), device model/type/sub_driver (parent) and label (Bug).
 
 Give the system time to exhibit this bug.
 It will try to create one “Bug” parent device with 100 “Bug #” children.
