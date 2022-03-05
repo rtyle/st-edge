@@ -1,0 +1,15 @@
+name: zone
+components:
+- id: main
+  capabilities:
+  - id: refresh
+    version: 1
+  - id: switch
+    version: 1
+  - id: audioMute
+    version: 1
+  - id: audioVolume
+    version: 1
+  - id: mediaInputSource
+  categories:
+  - name: network-audio

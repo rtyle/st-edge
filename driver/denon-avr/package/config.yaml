@@ -1,0 +1,5 @@
+name: 'Denon AVR'
+packageKey: 'denon-avr'
+permissions:
+  lan: {}
+  discovery: {}
