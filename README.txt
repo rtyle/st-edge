@@ -57,6 +57,10 @@
 
 		git submodule add -b suncalc.lua https://github.com/rtyle/suncalc-lua.git modules/suncalc
 
+	# forked xml2lua for tree-reduce-relax branch (pending pull request)
+
+		git submodule add -b tree-reduce-relax https://github.com/rtyle/xml2lua.git modules/xml2lua
+
 # lua_modules
 
 	# https://luarocks.org/modules/azdle/st

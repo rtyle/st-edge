@@ -8,3 +8,7 @@
 	path = modules/suncalc
 	url = https://github.com/rtyle/suncalc-lua.git
 	branch = suncalc.lua
+[submodule "modules/xml2lua"]
+	path = modules/xml2lua
+	url = https://github.com/rtyle/xml2lua.git
+	branch = tree-reduce-relax
