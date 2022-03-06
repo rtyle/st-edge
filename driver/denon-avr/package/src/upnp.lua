@@ -90,7 +90,7 @@ return classify.single({
 
         -- support UPnP Discovery
         -- with a udp socket
-        -- and UPnP:discovery_subscribe and UPnP:discovery_search
+        -- and UPnP:discovery_subscribe and UPnP:discovery_search*
         self.discovery_subscription = {}
         self.discovery_socket = cosock.socket.udp()
         willing_set[self.discovery_socket] = function()
@@ -102,14 +102,15 @@ return classify.single({
                 coroutine.yield(datagram)
                 return nil, "closed"
             end))
-            local ok, description = pcall(function()
-                local header = http:header(reader)
-                return {header, xml.decode(http:get(header.location, read_timeout).body).root}
+            local ok, message = pcall(function()
+                local _, message = http:message(reader)
+                local response, header = table.unpack(message)
+                return {response, header, xml.decode(http:get(header.location, read_timeout)[3]).root}
             end)
             if not ok then
-                log.warn(name, "discovery", peer_address, peer_port, description)
+                log.warn(name, "discovery", peer_address, peer_port, message)
             else
-                local header, description = table.unpack(description)
+                local _, header, description = table.unpack(message)
                 header.usn = USN(header.usn)
                 for scheme, path in pairs(header.usn) do
                     local scheme_set = self.discovery_subscription[scheme]
@@ -138,8 +139,20 @@ return classify.single({
             end
             local peer_address, peer_port = accept_socket:getpeername()
             log.debug(name, "accept", peer_address, peer_port)
+            local reader = http:reader(accept_socket, self.read_timeout)
             willing_set[accept_socket] = function()
-                Close(peer_address, peer_port)
+                local ok, message = http:message(reader)
+                if not ok then
+                    Close(peer_address, peer_port)
+                end
+                pcall(function()
+                    local _, propertyset = next(xml.decode(message[3]).root)
+                    for _, property in pairs(propertyset) do
+                        for key, value in pairs(property) do
+                            local x = 0
+                        end
+                    end
+                end)
             end
         end
 
@@ -230,5 +243,34 @@ return classify.single({
 
     discovery_search_unicast = function(self, st, address, port)
         self:_discovery_search(address, port, st)
+    end,
+
+    eventing_subscribe = function(self, location, url, device, service, statevar)
+        if "/" == url:sub(1, 1) then
+            url = location:match("(http://[%a%d-%.:]+)/.*") .. url
+        end
+        local header = {
+            "CALLBACK: <http://"
+                .. self.address
+                .. ":"
+                .. self.port
+                .. "/"
+                .. device
+                .. "/"
+                .. service
+                .. ">",
+            "NT: upnp:event",
+        }
+        if 0 < #statevar then
+            table.insert(header, "STATEVAR: " .. table.concat(statevar, ","))
+        end
+        local ok, response = pcall(function()
+            return http:transact('SUBSCRIBE', url, self.read_timeout, header)
+        end)
+        if ok then
+            log.debug(self.name, "eventing", url)
+        else
+            log.error(self.name, "eventing", url)
+        end
     end,
 })

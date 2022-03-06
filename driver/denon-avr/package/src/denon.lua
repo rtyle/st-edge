@@ -2,27 +2,24 @@ local cosock    = require "cosock"
 local log       = require "log"
 
 local classify  = require "classify"
-local Emitter   = require "emitter"
 local UPnP      = require "upnp"
 
 local M = {
     Discover = classify.single({
 
-        -- events emitted
-        EVENT_DISCOVERED = "discovered",
-
         -- default arguments
         DISCOVER_BACKOFF_CAP    = 8,
 
         _init = function(class, self, upnp)
-            classify.super(class):_init(self)
             self.upnp = upnp
             local urn = table.concat({UPnP.USN.SCHEMAS_UPNP_ORG, UPnP.USN.DEVICE, "MediaRenderer", 1}, ":")
             self.usn = UPnP.USN{[UPnP.USN.URN] = urn}
             self.discovery = function(address, port, header, description)
-                if "Denon" == description.root.device.manufacturer then
-                    log.debug(description.root.device.friendlyName, address, port, header.location, tostring(header.usn))
-                    self:emit(self.EVENT_DISCOVERED, address, port, header, description)
+                local device = description.root.device
+                if "Denon" == device.manufacturer then
+                    log.debug(device.friendlyName, address, port, header.location, tostring(header.usn))
+                    local service = device.serviceList.service[1]
+                    upnp:eventing_subscribe(header.location, service.eventSubURL, header.usn.uuid, UPnP.USN(service.serviceId).urn, {})
                 end
             end
             upnp:discovery_subscribe(self.usn, self.discovery)
@@ -51,14 +48,10 @@ local M = {
             end
         end,
 
-    }, Emitter)
+    })
 }
 
-discover = M.Discover(UPnP("192.168.1.20"))
-
-discover:on(discover.EVENT_DISCOVERED, function(address, port, header, description)
-    -- log.debug()
-end)
+local discover = M.Discover(UPnP("192.168.1.20"))
 
 discover:poll(1)
 
