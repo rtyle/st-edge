@@ -122,8 +122,6 @@ return {
     end,
 
     get = function(self, url, read_timeout)
-        return self:transact('GET', url, read_timeout, {
-            table.concat({"CONNECTION", "close"}, ": "),
-        })
+        return self:transact('GET', url, read_timeout)
     end,
 }
