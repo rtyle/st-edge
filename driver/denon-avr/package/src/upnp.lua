@@ -217,7 +217,7 @@ return classify.single({
         end
     end,
 
-    _discovery_search = function(self, address, port, st, mx, name)
+    _discovery_search = function(self, address, port, st, mx)
         local header = {
             table.concat({"HOST", table.concat({address, port}, ":")}, ": "),
             table.concat({"MAN" , '"ssdp:discover"'}, ": "),
@@ -225,11 +225,8 @@ return classify.single({
         }
         if mx then
             table.insert(header, table.concat({"MX", mx}, ": "))
+            table.insert(header, table.concat({"CPFN.UPNP.ORG", self.name}, ": "))
         end
-        if name then
-            table.insert(header, table.concat({"CPFN.UPNP.ORG", name}, ": "))
-        end
-        header = table.concat(header, self.EOL)
         self.discovery_socket:sendto(table.concat({
             table.concat({"M-SEARCH", "*", self.PROTOCOL}, " "),
             header,
@@ -238,7 +235,7 @@ return classify.single({
     end,
 
     discovery_search_multicast = function(self, st, mx)
-        self:_discovery_search(self.SSDP_MULTICAST_ADDRESS, self.SSDP_MULTICAST_PORT, st, mx or 1, self.name)
+        self:_discovery_search(self.SSDP_MULTICAST_ADDRESS, self.SSDP_MULTICAST_PORT, st, mx or 1)
     end,
 
     discovery_search_unicast = function(self, st, address, port)
