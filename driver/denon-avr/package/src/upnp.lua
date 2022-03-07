@@ -32,8 +32,8 @@ local USN = classify.single({
 
     _fromstring = function(encoded)
         local uri = {}
-        for _, pair in ipairs(split(encoded, "%s*::%s*", 0)) do
-            local kv = split(pair, "%s*:%s*", 2)
+        for _, pair in ipairs(split(encoded, "::", 0)) do
+            local kv = split(pair, ":", 2)
             uri[kv[1]] = kv[2]
         end
         return uri
@@ -218,20 +218,18 @@ return classify.single({
     end,
 
     discovery_search = function(self, address, port, st, mx)
-        local header = {
+        local message = {
+            table.concat({"M-SEARCH", "*", self.PROTOCOL}, " "),
             table.concat({"HOST", table.concat({address, port}, ":")}, ": "),
             table.concat({"MAN" , '"ssdp:discover"'}, ": "),
             table.concat({"ST"  , tostring(st)}, ": "),
         }
         if mx then
-            table.insert(header, table.concat({"MX", mx}, ": "))
-            table.insert(header, table.concat({"CPFN.UPNP.ORG", self.name}, ": "))
+            table.insert(message, table.concat({"MX", mx}, ": "))
+            table.insert(message, table.concat({"CPFN.UPNP.ORG", self.name}, ": "))
         end
-        self.discovery_socket:sendto(table.concat({
-            table.concat({"M-SEARCH", "*", self.PROTOCOL}, " "),
-            header,
-            self.EOL,
-        }, self.EOL), address, port)
+        table.insert(message, self.EOL)
+        self.discovery_socket:sendto(table.concat(message, self.EOL), address, port)
     end,
 
     discovery_search_multicast = function(self, st, mx)
@@ -262,7 +260,7 @@ return classify.single({
             table.insert(header, "STATEVAR: " .. table.concat(statevar, ","))
         end
         local ok, response = pcall(function()
-            return http:transact('SUBSCRIBE', url, self.read_timeout, header)
+            return http:transact(url, "SUBSCRIBE", self.read_timeout, header)
         end)
         if ok then
             log.debug(self.name, "eventing", url)

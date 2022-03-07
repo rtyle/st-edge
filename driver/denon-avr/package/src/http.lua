@@ -14,29 +14,22 @@ return {
     -- expected HTTP end of line terminators
     EOL       = "\r\n",
 
-    -- read HTTP response line and header field lines
-    -- result maps each (unique, lower cased) named header field to its last value
-    response_header = function(self, reader)
-        local response = split(reader:read_line(), "%s+", 3)
-        local header = {}
-        while true do
-            local line = reader:read_line()
-            if 0 == #line then break end
-            local nv = split(line, "%s*:%s*", 2)
-            if 1 < #nv then
-                header[nv[1]:lower()] = nv[2]
-            end
-        end
-        return response, header
-    end,
-
-    -- read HTTP message response line, header and body
+    -- read HTTP message response, header and body
+    -- header field keys are lowercased and assumed to be unique (last wins)
     message = function(self, reader)
         return pcall(function()
-            local response, header = self:response_header(reader)
-            if not header then
-                return {response}
+            local response = split(reader:read_line(), "%s+", 3)
+
+            local header = {}
+            while true do
+                local line = reader:read_line()
+                if 0 == #line then break end
+                local nv = split(line, "%s*:%s*", 2)
+                if 1 < #nv then
+                    header[nv[1]:lower()] = nv[2]
+                end
             end
+
             local encoding = header["transfer-encoding"]
             if encoding then
                 if "chunked" == encoding then
@@ -80,48 +73,67 @@ return {
         end)
     end,
 
-    transact = function(self, method, url, read_timeout, header)
-        header = header or {}
-
-        local address, port, path = url:gmatch("http://([%a%d-%.]+):(%d+)(/.*)")()
+    -- send an HTTP request to url for method with header
+    -- return HTTP response if successful; otherwise, nil and the error
+    transact = function(self, url, method, read_timeout, header)
+        -- parse url
+        local address, port, path = url:gmatch("http://([%a%d-%.]+):?(%d*)(/.*)")()
         if not (address and port and path) then
-            log.warn("http", method, "malformed", url)
+            log.error("http", method, "malformed", url)
             return nil, url
         end
+        if 0 == #port then
+            port = "80"
+        end
 
+        -- compose action
+        local action = table.concat({method, path, self.PROTOCOL}, " ")
+
+        -- managing a persistent connection lifecycle is not worth the effort
+        -- instead, we always close the connection after receiving the response.
+
+        -- connect
         local socket, connect_error = cosock.socket.connect(address, port)
         if connect_error then
-            log.warn("http", method, "connect", connect_error, address, port)
+            log.error("http", action, connect_error)
             return nil, connect_error
         end
 
-        local request = table.concat({
-            table.concat({method, path, self.PROTOCOL}, " "),
-            "HOST: " .. address .. ":" .. port,
+        -- compose request
+        local request = {
+            action,
+            table.concat({"HOST", table.concat({address, port}, ":")}, ": "),
             "CONNECTION: close",
-            table.concat(header, self.EOL),
-            self.EOL,
-        }, self.EOL)
-        local _, send_error = socket:send(request)
+        }
+        if header then
+            for _, field in ipairs(header) do
+                table.insert(request, field)
+            end
+        end
+        table.insert(request, self.EOL)
+
+        -- send request
+        local _, send_error = socket:send(table.concat(request, self.EOL))
         if send_error then
-            log.warn("http", method, "send", send_error, request)
+            log.error("http", action, send_error)
             socket:close()
             return nil, send_error
         end
 
-        local ok, message = self:message(self:reader(socket, read_timeout))
+        -- read response
+        local ok, response = self:message(self:reader(socket, read_timeout))
 
         socket:close()
 
-        if ok and message then
-            return message
+        if ok and response then
+            return response
         end
 
-        log.warn("http", method, message)
-        return nil, message
+        log.error("http", action, response)
+        return nil, response
     end,
 
     get = function(self, url, read_timeout)
-        return self:transact('GET', url, read_timeout)
+        return self:transact(url, "GET", read_timeout)
     end,
 }
