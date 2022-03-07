@@ -217,7 +217,7 @@ return classify.single({
         end
     end,
 
-    _discovery_search = function(self, address, port, st, mx)
+    discovery_search = function(self, address, port, st, mx)
         local header = {
             table.concat({"HOST", table.concat({address, port}, ":")}, ": "),
             table.concat({"MAN" , '"ssdp:discover"'}, ": "),
@@ -235,11 +235,11 @@ return classify.single({
     end,
 
     discovery_search_multicast = function(self, st, mx)
-        self:_discovery_search(self.SSDP_MULTICAST_ADDRESS, self.SSDP_MULTICAST_PORT, st, mx or 1)
+        self:discovery_search(self.SSDP_MULTICAST_ADDRESS, self.SSDP_MULTICAST_PORT, st, mx or 1)
     end,
 
     discovery_search_unicast = function(self, st, address, port)
-        self:_discovery_search(address, port, st)
+        self:discovery_search(address, port, st)
     end,
 
     eventing_subscribe = function(self, location, url, device, service, statevar)
