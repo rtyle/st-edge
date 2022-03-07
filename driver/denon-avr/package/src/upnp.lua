@@ -50,14 +50,12 @@ local USN = classify.single({
     end,
 })
 
+-- use for subscription tables
+-- unsubscription is implicit after garbage collection
 local WeakValues = classify.single({
     __mode = "v",
     _init = function() end
 })
-
--- construct (with log arguments) to affect UPnP thread loop processing
-local Break = classify.error({})    -- break out
-local Close = classify.error({})    -- close (what was ready is no longer willing or able)
 
 return classify.single({
     -- http
@@ -69,7 +67,9 @@ return classify.single({
     SSDP_MULTICAST_PORT       = 1900,
 
     -- classes
-    USN             = USN,
+    USN   = USN,
+    Break = classify.error({}), -- construct to break out of UPnP thread loop
+    Close = classify.error({}), -- construct to close (what was ready is no longer willing or able)
 
     _init = function(_, self, address, read_timeout, name)
         self.address = address
@@ -85,7 +85,7 @@ return classify.single({
         self.stop_sender = stop_sender
         willing_set[stop_receiver] = function()
             stop_receiver:receive()
-            Break()
+            self.Break()
         end
 
         -- support UPnP Discovery
@@ -112,14 +112,11 @@ return classify.single({
             else
                 local _, header, description = table.unpack(message)
                 header.usn = USN(header.usn)
-                for scheme, path in pairs(header.usn) do
-                    local scheme_set = self.discovery_subscription[scheme]
-                    if scheme_set then
-                        local path_list = scheme_set[path]
-                        if path_list then
-                            for _, discovery in ipairs(path_list) do
-                                discovery(peer_address, peer_port, header, description)
-                            end
+                for scheme, value in pairs(header.usn) do
+                    local list = self.discovery_subscription[table.concat({scheme, value}, ":")]
+                    if list then
+                        for _, discovery in ipairs(list) do
+                            discovery(peer_address, peer_port, header, description)
                         end
                     end
                 end
@@ -135,23 +132,36 @@ return classify.single({
         willing_set[listen_socket] = function()
             local accept_socket, accept_error = listen_socket:accept()
             if accept_error then
-                Close(port)
+                self.Close(port)
             end
             local peer_address, peer_port = accept_socket:getpeername()
             log.debug(name, "accept", peer_address, peer_port)
             local reader = http:reader(accept_socket, self.read_timeout)
             willing_set[accept_socket] = function()
-                local ok, message = http:message(reader)
-                if not ok then
-                    Close(peer_address, peer_port)
+                local message_ok, message = http:message(reader)
+                if not message_ok then
+                    self.Close(peer_address, peer_port)
                 end
-                pcall(function()
-                    local _, propertyset = next(xml.decode(message[3]).root)
-                    for _, property in pairs(propertyset) do
-                        for key, value in pairs(property) do
+                local _, eventing_error = pcall(function()
+                    local request, header, body = table.unpack(message)
+                    local _, path, _ = table.unpack(request)
+                    local device, service = path:gmatch("/(.*)/(.*)")()
+                    local function visit(node, name)
+                        local node_type = type(node)
+                        if "table" == node_type then
+                            for name, child in pairs(node) do
+                                if "_attr" ~= name then
+                                    visit(child, name)
+                                end
+                            end
+                        elseif "string" == node_type then
+                            local event = xml.decode(node).root
                             local x = 0
+                        else
+                            log.error(self.name, "eventing", "node", node_type)
                         end
                     end
+                    visit(xml.decode(body).root)
                 end)
             end
         end
@@ -175,11 +185,11 @@ return classify.single({
                     local ok, able_error = pcall(function() willing_set[ready]() end)
                     if not ok then
                         local class_able_error = classify.class(able_error)
-                        if Break == class_able_error then
+                        if self.Break == class_able_error then
                             log.debug(name, "break", table.unpack(able_error))
                             stop_receiver = nil -- break out of outer loop
                         else
-                            if Close == class_able_error then
+                            if self.Close == class_able_error then
                                 log.debug(name, "close", table.unpack(able_error))
                             else
                                 log.debug(name, "close", able_error)
@@ -202,18 +212,14 @@ return classify.single({
     end,
 
     discovery_subscribe = function(self, usn, discovery)
-        for scheme, path in pairs(usn) do
-            local scheme_set = self.discovery_subscription[scheme]
-            if not scheme_set then
-                scheme_set = {}
-                self.discovery_subscription[scheme] = scheme_set
+        for scheme, value in pairs(usn) do
+            local uri = table.concat({scheme, value}, ":")
+            local list = self.discovery_subscription[uri]
+            if not list then
+                list = WeakValues()
+                self.discovery_subscription[uri] = list
             end
-            local path_list = scheme_set[path]
-            if not path_list then
-                path_list = WeakValues()
-                scheme_set[path] = path_list
-            end
-            table.insert(path_list, discovery)
+            table.insert(list, discovery)
         end
     end,
 
@@ -256,7 +262,7 @@ return classify.single({
                 .. ">",
             "NT: upnp:event",
         }
-        if 0 < #statevar then
+        if statevar then
             table.insert(header, "STATEVAR: " .. table.concat(statevar, ","))
         end
         local ok, response = pcall(function()
