@@ -17,49 +17,47 @@ return {
     -- read HTTP message action, header and body
     -- header field keys are lowercased and assumed to be unique (last wins)
     message = function(self, reader)
-        return pcall(function()
-            local action = split(reader:read_line(), "%s+", 3)
+        local action = split(reader:read_line(), "%s+", 3)
 
-            local header = {}
-            while true do
-                local line = reader:read_line()
-                if 0 == #line then break end
-                local nv = split(line, "%s*:%s*", 2)
-                if 1 < #nv then
-                    header[nv[1]:lower()] = nv[2]
-                end
+        local header = {}
+        while true do
+            local line = reader:read_line()
+            if 0 == #line then break end
+            local nv = split(line, "%s*:%s*", 2)
+            if 1 < #nv then
+                header[nv[1]:lower()] = nv[2]
             end
+        end
 
-            local encoding = header["transfer-encoding"]
-            if encoding then
-                if "chunked" == encoding then
-                    local chunk = {}
-                    while true do
-                        local length = tonumber(reader:read_line(), 16)
-                        if not length then
-                            break
-                        end
-                        if 0 < length then
-                            table.insert(chunk, reader:read_exactly(length))
-                        end
-                        reader:read_exactly(#self.EOL)
-                        if 0 == length then
-                            break
-                        end
+        local encoding = header["transfer-encoding"]
+        if encoding then
+            if "chunked" == encoding then
+                local chunk = {}
+                while true do
+                    local length = tonumber(reader:read_line(), 16)
+                    if not length then
+                        break
                     end
-                    return {action, header, table.concat(chunk)}
-                end
-            else
-                local length = header["content-length"]
-                if length then
-                    length = tonumber(length)
                     if 0 < length then
-                        return {action, header, reader:read_exactly(tonumber(length))}
+                        table.insert(chunk, reader:read_exactly(length))
+                    end
+                    reader:read_exactly(#self.EOL)
+                    if 0 == length then
+                        break
                     end
                 end
+                return {action, header, table.concat(chunk)}
             end
-            return {action, header}
-        end)
+        else
+            local length = header["content-length"]
+            if length then
+                length = tonumber(length)
+                if 0 < length then
+                    return {action, header, reader:read_exactly(tonumber(length))}
+                end
+            end
+        end
+        return {action, header}
     end,
 
     reader = function(_, socket, read_timeout)
@@ -121,7 +119,9 @@ return {
         end
 
         -- read response
-        local ok, response = self:message(self:reader(socket, read_timeout))
+        local ok, response = pcall(function()
+            return self:message(self:reader(socket, read_timeout))
+        end)
 
         socket:close()
 

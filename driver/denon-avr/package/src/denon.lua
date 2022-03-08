@@ -20,7 +20,7 @@ local M = {
                     log.debug(device.friendlyName, address, port, header.location, tostring(header.usn))
                     for _, service in ipairs(device.serviceList.service) do
                         upnp:eventing_subscribe(header.location, service.eventSubURL, header.usn.uuid, UPnP.USN(service.serviceId).urn, nil,
-                            function(event)
+                            function(name, event)
                                 local x = 0
                             end)
                     end

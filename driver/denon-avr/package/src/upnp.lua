@@ -101,15 +101,14 @@ return classify.single({    -- UPnP
                 coroutine.yield(datagram)
                 return nil, "closed"
             end))
-            local ok, message = pcall(function()
-                local _, message = http:message(reader)
-                local response, header = table.unpack(message)
-                return {response, header, xml.decode(http:get(header.location, self.read_timeout)[3]).root}
+            local ok, response = pcall(function()
+                local action, header = table.unpack(http:message(reader))
+                return {action, header, xml.decode(http:get(header.location, self.read_timeout)[3]).root}
             end)
             if not ok then
-                log.error(self.name, "discovery", peer_address, peer_port, message)
+                log.error(self.name, "discovery", peer_address, peer_port, response)
             else
-                local _, header, description = table.unpack(message)
+                local _, header, description = table.unpack(response)
                 header.usn = USN(header.usn)
                 for scheme, value in pairs(header.usn) do
                     local list = self.discovery_subscription[table.concat({scheme, value}, ":")]
@@ -139,12 +138,14 @@ return classify.single({    -- UPnP
             log.debug(self.name, "event", "accept", peer_address, peer_port)
             local reader = http:reader(accept_socket, self.read_timeout)
             willing_set[accept_socket] = function()
-                local message_ok, message = http:message(reader)
-                if not message_ok then
+                local response_ok, response = pcall(function()
+                    return http:message(reader)
+                end)
+                if not response_ok then
                     self.Close(peer_address, peer_port)
                 end
                 local _, eventing_error = pcall(function()
-                    local action, _, body = table.unpack(message)
+                    local action, _, body = table.unpack(response)
                     local _, path, _ = table.unpack(action)
                     local part = split(path:sub(2), "/", 3)
                     local prefix = table.concat({part[1], part[2]}, "/")
@@ -165,9 +166,16 @@ return classify.single({    -- UPnP
                                 if not list then
                                     log.warn(self.name, "event", "drop", path, name)
                                 else
-                                    local event = xml.decode(node).root
+                                    -- decode event at node as xml if we can
+                                    local event
+                                    local decode_ok, event = pcall(function()
+                                        return xml.decode(node).root
+                                    end)
+                                    if not decode_ok then
+                                        event = node
+                                    end
                                     for _, eventing in ipairs(list) do
-                                        eventing(event)
+                                        eventing(name, event)
                                     end
                                 end
                             else
@@ -243,18 +251,18 @@ return classify.single({    -- UPnP
     end,
 
     discovery_search = function(self, address, port, st, mx)
-        local message = {
+        local request = {
             table.concat({"M-SEARCH", "*", self.PROTOCOL}, " "),
             table.concat({"HOST", table.concat({address, port}, ":")}, ": "),
             table.concat({"MAN" , '"ssdp:discover"'}, ": "),
             table.concat({"ST"  , tostring(st)}, ": "),
         }
         if mx then
-            table.insert(message, table.concat({"MX", mx}, ": "))
-            table.insert(message, table.concat({"CPFN.UPNP.ORG", self.name}, ": "))
+            table.insert(request, table.concat({"MX", mx}, ": "))
+            table.insert(request, table.concat({"CPFN.UPNP.ORG", self.name}, ": "))
         end
-        table.insert(message, self.EOL)
-        self.discovery_socket:sendto(table.concat(message, self.EOL), address, port)
+        table.insert(request, self.EOL)
+        self.discovery_socket:sendto(table.concat(request, self.EOL), address, port)
     end,
 
     discovery_search_multicast = function(self, st, mx)
