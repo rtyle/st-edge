@@ -121,7 +121,7 @@ return classify.single({    -- UPnP
                 for scheme, value in pairs(header.usn) do
                     local set = self.discovery_subscription[table.concat({scheme, value}, ":")]
                     if set then
-                        for discovery, _ in pairs(set) do
+                        for discovery in pairs(set) do
                             discovery(peer_address, peer_port, header, description)
                         end
                     end
@@ -155,7 +155,7 @@ return classify.single({    -- UPnP
                 end
                 local _, eventing_error = pcall(function()
                     local action, _, body = table.unpack(response)
-                    local _, path, _ = table.unpack(action)
+                    local _, path = table.unpack(action)
                     local part = split(path:sub(2), "/", 3)
                     local prefix = table.concat({part[1], part[2]}, "/")
                     local prefix_set = self.eventing_subscription[prefix]
@@ -182,7 +182,7 @@ return classify.single({    -- UPnP
                                     if not decode_ok then
                                         event = node
                                     end
-                                    for eventing, _ in pairs(statevar_set) do
+                                    for eventing in pairs(statevar_set) do
                                         eventing(name, event)
                                     end
                                 end
@@ -204,7 +204,7 @@ return classify.single({    -- UPnP
             while receive_receiver do
                 -- wait for anything that we are willing to receive from
                 local willing_list = {}
-                for willing, _ in pairs(willing_set) do
+                for willing in pairs(willing_set) do
                     table.insert(willing_list, willing)
                 end
                 local ready_list, select_error = cosock.socket.select(willing_list)
@@ -235,7 +235,7 @@ return classify.single({    -- UPnP
                     end
                 end
             end
-            for willing, _ in pairs(willing_set) do
+            for willing in pairs(willing_set) do
                 willing:close()
             end
             willing_set = {}
@@ -404,7 +404,7 @@ return classify.single({    -- UPnP
         else
             if self:eventing_new(url, path) then
                 self.subscribe_sender:send(1)
-                self:eventing_register(prefix, statevar_list, eventing)                
+                self:eventing_register(prefix, statevar_list, eventing)
             end
         end
     end,
