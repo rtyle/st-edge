@@ -14,11 +14,11 @@ return {
     -- expected HTTP end of line terminators
     EOL       = "\r\n",
 
-    -- read HTTP message response, header and body
+    -- read HTTP message action, header and body
     -- header field keys are lowercased and assumed to be unique (last wins)
     message = function(self, reader)
         return pcall(function()
-            local response = split(reader:read_line(), "%s+", 3)
+            local action = split(reader:read_line(), "%s+", 3)
 
             local header = {}
             while true do
@@ -47,18 +47,18 @@ return {
                             break
                         end
                     end
-                    return {response, header, table.concat(chunk)}
+                    return {action, header, table.concat(chunk)}
                 end
             else
                 local length = header["content-length"]
                 if length then
                     length = tonumber(length)
                     if 0 < length then
-                        return {response, header, reader:read_exactly(tonumber(length))}
+                        return {action, header, reader:read_exactly(tonumber(length))}
                     end
                 end
             end
-            return {response, header}
+            return {action, header}
         end)
     end,
 

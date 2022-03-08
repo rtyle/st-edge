@@ -57,7 +57,7 @@ local WeakValues = classify.single({
     _init = function() end
 })
 
-return classify.single({
+return classify.single({    -- UPnP
     -- http
     PROTOCOL    = http.PROTOCOL,
     EOL         = http.EOL,
@@ -71,12 +71,11 @@ return classify.single({
     Break = classify.error({}), -- construct to break out of UPnP thread loop
     Close = classify.error({}), -- construct to close (what was ready is no longer willing or able)
 
-    _init = function(_, self, address, read_timeout, name)
+    _init = function(_, self, address, read_timeout, _name)
         self.address = address
-        read_timeout = read_timeout or 1
-        name = name or "UPnP"
-        self.name = name
-        log.debug(name, "address", address)
+        self.read_timeout = read_timeout or 1
+        self.name = _name or "UPnP"
+        log.debug(self.name, "address", address)
 
         local willing_set = {}
 
@@ -105,10 +104,10 @@ return classify.single({
             local ok, message = pcall(function()
                 local _, message = http:message(reader)
                 local response, header = table.unpack(message)
-                return {response, header, xml.decode(http:get(header.location, read_timeout)[3]).root}
+                return {response, header, xml.decode(http:get(header.location, self.read_timeout)[3]).root}
             end)
             if not ok then
-                log.warn(name, "discovery", peer_address, peer_port, message)
+                log.error(self.name, "discovery", peer_address, peer_port, message)
             else
                 local _, header, description = table.unpack(message)
                 header.usn = USN(header.usn)
@@ -125,9 +124,11 @@ return classify.single({
 
         -- support UPnP Eventing
         -- with a tcp listen socket and those accepted from it
+        -- and UPnP:eventing_subscribe
+        self.eventing_subscription = {}
         local listen_socket = cosock.socket.bind('*', 0)
         local _, port = listen_socket:getsockname()
-        log.debug(name, "listen", port)
+        log.debug(self.name, "event", port)
         self.port = port
         willing_set[listen_socket] = function()
             local accept_socket, accept_error = listen_socket:accept()
@@ -135,7 +136,7 @@ return classify.single({
                 self.Close(port)
             end
             local peer_address, peer_port = accept_socket:getpeername()
-            log.debug(name, "accept", peer_address, peer_port)
+            log.debug(self.name, "event", "accept", peer_address, peer_port)
             local reader = http:reader(accept_socket, self.read_timeout)
             willing_set[accept_socket] = function()
                 local message_ok, message = http:message(reader)
@@ -143,26 +144,42 @@ return classify.single({
                     self.Close(peer_address, peer_port)
                 end
                 local _, eventing_error = pcall(function()
-                    local request, header, body = table.unpack(message)
-                    local _, path, _ = table.unpack(request)
-                    local device, service = path:gmatch("/(.*)/(.*)")()
-                    local function visit(node, name)
-                        local node_type = type(node)
-                        if "table" == node_type then
-                            for name, child in pairs(node) do
-                                if "_attr" ~= name then
-                                    visit(child, name)
+                    local action, _, body = table.unpack(message)
+                    local _, path, _ = table.unpack(action)
+                    local part = split(path:sub(2), "/", 3)
+                    local prefix = table.concat({part[1], part[2]}, "/")
+                    local set = self.eventing_subscription[prefix]
+                    if not set then
+                        log.warn(self.name, "event", "drop", path)
+                    else
+                        local function visit(node, name)
+                            local node_type = type(node)
+                            if "table" == node_type then
+                                for child_name, child_node in pairs(node) do
+                                    if "_attr" ~= child_name then
+                                        visit(child_node, child_name)
+                                    end
                                 end
+                            elseif "string" == node_type then
+                                local list = set[name] or set[""]
+                                if not list then
+                                    log.warn(self.name, "event", "drop", path, name)
+                                else
+                                    local event = xml.decode(node).root
+                                    for _, eventing in ipairs(list) do
+                                        eventing(event)
+                                    end
+                                end
+                            else
+                                log.error(self.name, "event", "drop", path, name, node_type)
                             end
-                        elseif "string" == node_type then
-                            local event = xml.decode(node).root
-                            local x = 0
-                        else
-                            log.error(self.name, "eventing", "node", node_type)
                         end
+                        visit(xml.decode(body).root)
                     end
-                    visit(xml.decode(body).root)
                 end)
+                if (eventing_error) then
+                    log.error(self.name, "event", eventing_error)
+                end
             end
         end
 
@@ -177,22 +194,24 @@ return classify.single({
                 local ready_list, select_error = cosock.socket.select(willing_list)
                 if select_error then
                     -- stop on unexpected error
-                    log.error(name, select_error)
+                    log.error(self.name, "thread", "select", select_error)
                     break
                 end
                 while 0 < #ready_list do
                     local ready = table.remove(ready_list, 1)
-                    local ok, able_error = pcall(function() willing_set[ready]() end)
+                    local ok, able_error = pcall(function()
+                        willing_set[ready]()
+                    end)
                     if not ok then
                         local class_able_error = classify.class(able_error)
                         if self.Break == class_able_error then
-                            log.debug(name, "break", table.unpack(able_error))
+                            log.debug(self.name, "thread", "break", table.unpack(able_error))
                             stop_receiver = nil -- break out of outer loop
                         else
                             if self.Close == class_able_error then
-                                log.debug(name, "close", table.unpack(able_error))
+                                log.debug(self.name, "thread", "close", table.unpack(able_error))
                             else
-                                log.debug(name, "close", able_error)
+                                log.debug(self.name, "thread", "close", able_error)
                             end
                             ready:close()
                             willing_set[ready] = nil
@@ -204,7 +223,7 @@ return classify.single({
                 willing:close()
             end
             willing_set = {}
-        end, name)
+        end, self.name)
     end,
 
     stop = function(self)
@@ -246,32 +265,44 @@ return classify.single({
         self:discovery_search(address, port, st)
     end,
 
-    eventing_subscribe = function(self, location, url, device, service, statevar)
+    eventing_subscribe = function(self, location, url, device, service, statevar_list, eventing)
+        statevar_list = statevar_list or {""}
+        local statevar = table.concat(statevar_list, ",")
         if "/" == url:sub(1, 1) then
+            -- qualify relative url with location prefix
             url = location:match("(http://[%a%d-%.:]+)/.*") .. url
         end
-        local header = {
-            "CALLBACK: <http://"
-                .. self.address
-                .. ":"
-                .. self.port
-                .. "/"
-                .. device
-                .. "/"
-                .. service
-                .. ">",
+        local prefix = table.concat({device, service}, "/")
+        local callback = "http://" .. self.address .. ":" .. self.port .. "/" .. table.concat({prefix, statevar}, "/")
+        local request_header = {
+            "CALLBACK: <" .. callback .. ">",
             "NT: upnp:event",
         }
-        if statevar then
-            table.insert(header, "STATEVAR: " .. table.concat(statevar, ","))
+        if 0 < #statevar then
+            table.insert(request_header, table.concat({"STATEVAR", statevar}, ": "))
         end
-        local ok, response = pcall(function()
-            return http:transact(url, "SUBSCRIBE", self.read_timeout, header)
-        end)
-        if ok then
-            log.debug(self.name, "eventing", url)
+        local response, response_error = http:transact(url, "SUBSCRIBE", self.read_timeout, request_header)
+        if response then
+            local action, header = table.unpack(response)
+            if http.OK ~= action[2] then
+                log.error(self.name, "event", "catch", url, callback, action[3])
+            else
+                local set = self.eventing_subscription[prefix]
+                if not set then
+                    set = {}
+                    self.eventing_subscription[prefix] = set
+                end
+                for _, name in ipairs(statevar_list) do
+                    local list = set[name]
+                    if not list then
+                        list = {}
+                        set[name] = list
+                    end
+                    table.insert(list, eventing)
+                end
+            end
         else
-            log.error(self.name, "eventing", url)
+            log.error(self.name, "event", "catch", url, callback)
         end
     end,
 })

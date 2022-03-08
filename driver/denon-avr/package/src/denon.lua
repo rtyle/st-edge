@@ -19,7 +19,10 @@ local M = {
                 if "Denon" == device.manufacturer then
                     log.debug(device.friendlyName, address, port, header.location, tostring(header.usn))
                     for _, service in ipairs(device.serviceList.service) do
-                        upnp:eventing_subscribe(header.location, service.eventSubURL, header.usn.uuid, UPnP.USN(service.serviceId).urn)
+                        upnp:eventing_subscribe(header.location, service.eventSubURL, header.usn.uuid, UPnP.USN(service.serviceId).urn, nil,
+                            function(event)
+                                local x = 0
+                            end)
                     end
                 end
             end
