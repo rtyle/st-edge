@@ -21,7 +21,7 @@ local M = {
                     for _, service in ipairs(device.serviceList.service) do
                         upnp:eventing_subscribe(header.location, service.eventSubURL, header.usn.uuid, UPnP.USN(service.serviceId).urn, nil,
                             function(name, event)
-                                local x = 0
+                                log.debug("Denon", name)
                             end)
                     end
                 end

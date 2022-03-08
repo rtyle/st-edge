@@ -3,11 +3,17 @@
 local cosock    = require "cosock"
 local log       = require "log"
 
+local date      = require "date"
+
 local classify  = require "classify"
 local http      = require "http"
 local Reader    = require "reader"
 local split     = require "split"
 local xml       = require "xml"
+
+local function epoch_time()
+    return date.diff(date(true), date.epoch()):spanseconds()
+end
 
 local USN = classify.single({
     -- URI schemes
@@ -79,13 +85,15 @@ return classify.single({    -- UPnP
 
         local willing_set = {}
 
-        -- support UPnP:stop
-        local stop_sender, stop_receiver = cosock.channel.new()
-        self.stop_sender = stop_sender
-        willing_set[stop_receiver] = function()
-            stop_receiver:receive()
+        -- receive and subscribe thread control
+        local receive_sender, receive_receiver = cosock.channel.new()
+        self.receive_sender = receive_sender
+        willing_set[receive_receiver] = function()
+            receive_receiver:receive()
             self.Break()
         end
+        local subscribe_sender, subscribe_receiver = cosock.channel.new()
+        self.subscribe_sender = subscribe_sender
 
         -- support UPnP Discovery
         -- with a udp socket
@@ -124,11 +132,12 @@ return classify.single({    -- UPnP
         -- support UPnP Eventing
         -- with a tcp listen socket and those accepted from it
         -- and UPnP:eventing_subscribe
+        self.eventing_callback = {}
         self.eventing_subscription = {}
         local listen_socket = cosock.socket.bind('*', 0)
         local _, port = listen_socket:getsockname()
-        log.debug(self.name, "event", port)
         self.port = port
+        log.debug(self.name, "event", "socat - TCP:" .. self.address .. ":" .. self.port .. ",crnl")
         willing_set[listen_socket] = function()
             local accept_socket, accept_error = listen_socket:accept()
             if accept_error then
@@ -167,7 +176,6 @@ return classify.single({    -- UPnP
                                     log.warn(self.name, "event", "drop", path, name)
                                 else
                                     -- decode event at node as xml if we can
-                                    local event
                                     local decode_ok, event = pcall(function()
                                         return xml.decode(node).root
                                     end)
@@ -191,9 +199,9 @@ return classify.single({    -- UPnP
             end
         end
 
-        -- support thread
+        -- receive thread
         cosock.spawn(function()
-            while stop_receiver do
+            while receive_receiver do
                 -- wait for anything that we are willing to receive from
                 local willing_list = {}
                 for willing, _ in pairs(willing_set) do
@@ -202,7 +210,7 @@ return classify.single({    -- UPnP
                 local ready_list, select_error = cosock.socket.select(willing_list)
                 if select_error then
                     -- stop on unexpected error
-                    log.error(self.name, "thread", "select", select_error)
+                    log.error(self.name, "receive", "select", select_error)
                     break
                 end
                 while 0 < #ready_list do
@@ -213,13 +221,13 @@ return classify.single({    -- UPnP
                     if not ok then
                         local class_able_error = classify.class(able_error)
                         if self.Break == class_able_error then
-                            log.debug(self.name, "thread", "break", table.unpack(able_error))
-                            stop_receiver = nil -- break out of outer loop
+                            log.debug(self.name, "receive", "break", table.unpack(able_error))
+                            receive_receiver = nil -- break out of outer loop
                         else
                             if self.Close == class_able_error then
-                                log.debug(self.name, "thread", "close", table.unpack(able_error))
+                                log.debug(self.name, "receive", "close", table.unpack(able_error))
                             else
-                                log.debug(self.name, "thread", "close", able_error)
+                                log.debug(self.name, "receive", "close", able_error)
                             end
                             ready:close()
                             willing_set[ready] = nil
@@ -231,11 +239,30 @@ return classify.single({    -- UPnP
                 willing:close()
             end
             willing_set = {}
-        end, self.name)
+        end, table.concat({self.name, "receive"}, "\t"))
+
+        -- subscribe thread
+        cosock.spawn(function()
+            while true do
+                local timeout = 300
+                local ready, select_error = cosock.socket.select({subscribe_receiver}, {}, timeout)
+                if select_error then
+                    -- stop on unexpected error
+                    log.error(self.name, "subscribe", "select", select_error)
+                    break
+                end
+                if ready then
+                    if 0 == subscribe_receiver:receive() then
+                        break
+                    end
+                end
+            end
+        end, table.concat({self.name, "subscribe"}, "\t"))
     end,
 
     stop = function(self)
-        self.stop_sender:send(0)
+        self.receive_sender:send(0)
+        self.subscribe_sender:send(0)
     end,
 
     discovery_subscribe = function(self, usn, discovery)
@@ -273,6 +300,9 @@ return classify.single({    -- UPnP
         self:discovery_search(address, port, st)
     end,
 
+    eventing_renew = function()
+    end,
+
     eventing_subscribe = function(self, location, url, device, service, statevar_list, eventing)
         statevar_list = statevar_list or {""}
         local statevar = table.concat(statevar_list, ",")
@@ -281,36 +311,45 @@ return classify.single({    -- UPnP
             url = location:match("(http://[%a%d-%.:]+)/.*") .. url
         end
         local prefix = table.concat({device, service}, "/")
-        local callback = "http://" .. self.address .. ":" .. self.port .. "/" .. table.concat({prefix, statevar}, "/")
-        local request_header = {
-            "CALLBACK: <" .. callback .. ">",
-            "NT: upnp:event",
-        }
-        if 0 < #statevar then
-            table.insert(request_header, table.concat({"STATEVAR", statevar}, ": "))
-        end
-        local response, response_error = http:transact(url, "SUBSCRIBE", self.read_timeout, request_header)
-        if response then
-            local action, header = table.unpack(response)
-            if http.OK ~= action[2] then
-                log.error(self.name, "event", "catch", url, callback, action[3])
-            else
-                local set = self.eventing_subscription[prefix]
-                if not set then
-                    set = {}
-                    self.eventing_subscription[prefix] = set
-                end
-                for _, name in ipairs(statevar_list) do
-                    local list = set[name]
-                    if not list then
-                        list = {}
-                        set[name] = list
-                    end
-                    table.insert(list, eventing)
-                end
-            end
+        local path = table.concat({prefix, statevar}, "/")
+        local eventing_callback = self.eventing_callback[path]
+        if eventing_callback then
+            log.warn(self.name, "event", path, table.unpack(eventing_callback))
         else
-            log.error(self.name, "event", "catch", url, callback)
+            local callback = "http://" .. self.address .. ":" .. self.port .. "/" .. path
+            local request_header = {
+                "CALLBACK: <" .. callback .. ">",
+                "NT: upnp:event",
+            }
+            if 0 < #statevar then
+                table.insert(request_header, table.concat({"STATEVAR", statevar}, ": "))
+            end
+            local response, response_error = http:transact(url, "SUBSCRIBE", self.read_timeout, request_header)
+            if response then
+                local action, header = table.unpack(response)
+                if http.OK ~= action[2] then
+                    log.error(self.name, "event", "catch", url, callback, action[3])
+                else
+                    local timeout = header.timeout:match("Second%-(%d+)")
+                    self.eventing_callback[path] = {header.sid, timeout, epoch_time() + timeout}
+                    self.subscribe_sender:send(1)
+                    local set = self.eventing_subscription[prefix]
+                    if not set then
+                        set = {}
+                        self.eventing_subscription[prefix] = set
+                    end
+                    for _, name in ipairs(statevar_list) do
+                        local list = set[name]
+                        if not list then
+                            list = {}
+                            set[name] = list
+                        end
+                        table.insert(list, eventing)
+                    end
+                end
+            else
+                log.error(self.name, "event", "catch", url, callback)
+            end
         end
     end,
 })
