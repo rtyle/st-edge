@@ -57,13 +57,9 @@ local USN = classify.single({
 })
 
 -- use for subscription tables
--- unsubscription is implicit after garbage collection of callback function
+-- unsubscription is implicit after garbage collection of subscribed method
 local WeakKeys = classify.single({
     __mode = "k",
-    _init = function() end
-})
-local WeakValues = classify.single({
-    __mode = "v",
     _init = function() end
 })
 
@@ -101,7 +97,7 @@ return classify.single({    -- UPnP
 
         -- support UPnP Discovery
         -- with a udp socket
-        -- and UPnP:discovery_subscribe and UPnP:discovery_search*
+        -- and UPnP:discovery* methods
         self.discovery_subscription = {}
         self.discovery_socket = cosock.socket.udp()
         willing_set[self.discovery_socket] = function()
@@ -123,9 +119,9 @@ return classify.single({    -- UPnP
                 local _, header, description = table.unpack(response)
                 header.usn = USN(header.usn)
                 for scheme, value in pairs(header.usn) do
-                    local list = self.discovery_subscription[table.concat({scheme, value}, ":")]
-                    if list then
-                        for _, discovery in ipairs(list) do
+                    local set = self.discovery_subscription[table.concat({scheme, value}, ":")]
+                    if set then
+                        for discovery, _ in pairs(set) do
                             discovery(peer_address, peer_port, header, description)
                         end
                     end
@@ -135,7 +131,7 @@ return classify.single({    -- UPnP
 
         -- support UPnP Eventing
         -- with a tcp listen socket and those accepted from it
-        -- and UPnP:eventing_subscribe
+        -- and UPnP:eventing* methods
         self.eventing_callback = {}
         self.eventing_subscription = {}
         local listen_socket = cosock.socket.bind('*', 0)
@@ -290,12 +286,12 @@ return classify.single({    -- UPnP
     discovery_subscribe = function(self, usn, discovery)
         for scheme, value in pairs(usn) do
             local uri = table.concat({scheme, value}, ":")
-            local list = self.discovery_subscription[uri]
-            if not list then
-                list = WeakValues()
-                self.discovery_subscription[uri] = list
+            local set = self.discovery_subscription[uri]
+            if not set then
+                set = WeakKeys()
+                self.discovery_subscription[uri] = set
             end
-            table.insert(list, discovery)
+            set[discovery] = true
         end
     end,
 
