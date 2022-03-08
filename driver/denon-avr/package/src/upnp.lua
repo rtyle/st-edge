@@ -57,7 +57,11 @@ local USN = classify.single({
 })
 
 -- use for subscription tables
--- unsubscription is implicit after garbage collection
+-- unsubscription is implicit after garbage collection of callback function
+local WeakKeys = classify.single({
+    __mode = "k",
+    _init = function() end
+})
 local WeakValues = classify.single({
     __mode = "v",
     _init = function() end
@@ -158,8 +162,8 @@ return classify.single({    -- UPnP
                     local _, path, _ = table.unpack(action)
                     local part = split(path:sub(2), "/", 3)
                     local prefix = table.concat({part[1], part[2]}, "/")
-                    local set = self.eventing_subscription[prefix]
-                    if not set then
+                    local prefix_set = self.eventing_subscription[prefix]
+                    if not prefix_set then
                         log.warn(self.name, "event", "drop", path)
                     else
                         local function visit(node, name)
@@ -171,8 +175,8 @@ return classify.single({    -- UPnP
                                     end
                                 end
                             elseif "string" == node_type then
-                                local list = set[name] or set[""]
-                                if not list then
+                                local statevar_set = prefix_set[name] or prefix_set[""]
+                                if not statevar_set then
                                     log.warn(self.name, "event", "drop", path, name)
                                 else
                                     -- decode event at node as xml if we can
@@ -182,7 +186,7 @@ return classify.single({    -- UPnP
                                     if not decode_ok then
                                         event = node
                                     end
-                                    for _, eventing in ipairs(list) do
+                                    for eventing, _ in pairs(statevar_set) do
                                         eventing(name, event)
                                     end
                                 end
@@ -244,8 +248,18 @@ return classify.single({    -- UPnP
         -- subscribe thread
         cosock.spawn(function()
             while true do
-                local timeout = 300
-                local ready, select_error = cosock.socket.select({subscribe_receiver}, {}, timeout)
+                local timeout_min = nil -- forever
+                local before = epoch_time()
+                for _, eventing_callback in pairs(self.eventing_callback) do
+                    local expire = table.unpack(eventing_callback)
+                    local timeout = expire - before
+                    if not timeout_min then
+                        timeout_min = timeout
+                    else
+                        timeout_min = math.max(0, math.min(timeout_min, timeout))
+                    end
+                end
+                local ready, select_error = cosock.socket.select({subscribe_receiver}, {}, timeout_min)
                 if select_error then
                     -- stop on unexpected error
                     log.error(self.name, "subscribe", "select", select_error)
@@ -254,6 +268,14 @@ return classify.single({    -- UPnP
                 if ready then
                     if 0 == subscribe_receiver:receive() then
                         break
+                    end
+                else    -- timeout
+                    local after = epoch_time()
+                    for path, eventing_callback in pairs(self.eventing_callback) do
+                        local expire = table.unpack(eventing_callback)
+                        if (after >= expire) then
+                            self:eventing_renew(path, eventing_callback)
+                        end
                     end
                 end
             end
@@ -300,55 +322,93 @@ return classify.single({    -- UPnP
         self:discovery_search(address, port, st)
     end,
 
-    eventing_renew = function()
+    eventing_new = function(self, url, path)
+        local callback = "http://" .. self.address .. ":" .. self.port .. "/" .. path
+        local request_header = {
+            "CALLBACK: <" .. callback .. ">",
+            "NT: upnp:event",
+        }
+        local statevar = split(path, "/", 3)[3]
+        if 0 < #statevar then
+            table.insert(request_header, table.concat({"STATEVAR", statevar}, ": "))
+        end
+        local response, response_error = http:transact(url, "SUBSCRIBE", self.read_timeout, request_header)
+        if response_error then
+            log.error(self.name, "event", "new", url, path, response_error)
+        else
+            local action, header = table.unpack(response)
+            if http.OK ~= action[2] then
+                log.error(self.name, "event", "new", url, path, action[3])
+            else
+                local sid, timeout = header.sid, header.timeout
+                log.debug(self.name, "event", "new", url, path, sid, timeout)
+                timeout = math.max(60, tonumber(timeout:match("Second%-(%d+)")))
+                local expire = epoch_time() + timeout - 8
+                self.eventing_callback[path] = {expire, url, sid, timeout}
+                return true
+            end
+        end
+    end,
+
+    eventing_renew = function(self, path, eventing_callback)
+        local now = epoch_time()
+        local _, url, sid = table.unpack(eventing_callback)
+        local request_header = {
+            "SID: " .. sid,
+        }
+        local response, response_error = http:transact(url, "SUBSCRIBE", self.read_timeout, request_header)
+        if response_error then
+            log.error(self.name, "event", "renew", url, path, sid, response_error)
+        else
+            local action, header = table.unpack(response)
+            if http.OK ~= action[2] then
+                log.error(self.name, "event", "renew", url, path, sid, action[3])
+            else
+                local timeout = header.timeout
+                log.debug(self.name, "event", "renew", url, path, sid, timeout)
+                timeout = math.max(60, tonumber(timeout:match("Second%-(%d+)")))
+                local expire = now + timeout - 8
+                eventing_callback[1] = expire
+                return
+            end
+        end
+        if not self:eventing_new(url, path) then
+            eventing_callback[1] = now + 60
+        end
+    end,
+
+    eventing_register = function(self, prefix, statevar_list, eventing)
+        local prefix_set = self.eventing_subscription[prefix]
+        if not prefix_set then
+            prefix_set = {}
+            self.eventing_subscription[prefix] = prefix_set
+        end
+        for _, name in ipairs(statevar_list) do
+            local statevar_set = prefix_set[name]
+            if not statevar_set then
+                statevar_set = WeakKeys()
+                prefix_set[name] = statevar_set
+            end
+            statevar_set[eventing] = true
+        end
     end,
 
     eventing_subscribe = function(self, location, url, device, service, statevar_list, eventing)
-        statevar_list = statevar_list or {""}
-        local statevar = table.concat(statevar_list, ",")
         if "/" == url:sub(1, 1) then
             -- qualify relative url with location prefix
             url = location:match("(http://[%a%d-%.:]+)/.*") .. url
         end
         local prefix = table.concat({device, service}, "/")
+        statevar_list = statevar_list or {""}
+        local statevar = table.concat(statevar_list, ",")
         local path = table.concat({prefix, statevar}, "/")
         local eventing_callback = self.eventing_callback[path]
-        if eventing_callback then
-            log.warn(self.name, "event", path, table.unpack(eventing_callback))
+        if eventing_callback and url == eventing_callback[2] then
+            self:eventing_register(prefix, statevar_list, eventing)
         else
-            local callback = "http://" .. self.address .. ":" .. self.port .. "/" .. path
-            local request_header = {
-                "CALLBACK: <" .. callback .. ">",
-                "NT: upnp:event",
-            }
-            if 0 < #statevar then
-                table.insert(request_header, table.concat({"STATEVAR", statevar}, ": "))
-            end
-            local response, response_error = http:transact(url, "SUBSCRIBE", self.read_timeout, request_header)
-            if response then
-                local action, header = table.unpack(response)
-                if http.OK ~= action[2] then
-                    log.error(self.name, "event", "catch", url, callback, action[3])
-                else
-                    local timeout = header.timeout:match("Second%-(%d+)")
-                    self.eventing_callback[path] = {header.sid, timeout, epoch_time() + timeout}
-                    self.subscribe_sender:send(1)
-                    local set = self.eventing_subscription[prefix]
-                    if not set then
-                        set = {}
-                        self.eventing_subscription[prefix] = set
-                    end
-                    for _, name in ipairs(statevar_list) do
-                        local list = set[name]
-                        if not list then
-                            list = {}
-                            set[name] = list
-                        end
-                        table.insert(list, eventing)
-                    end
-                end
-            else
-                log.error(self.name, "event", "catch", url, callback)
+            if self:eventing_new(url, path) then
+                self.subscribe_sender:send(1)
+                self:eventing_register(prefix, statevar_list, eventing)                
             end
         end
     end,

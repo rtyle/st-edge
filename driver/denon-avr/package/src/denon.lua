@@ -14,15 +14,15 @@ local M = {
             self.upnp = upnp
             local urn = table.concat({UPnP.USN.SCHEMAS_UPNP_ORG, UPnP.USN.DEVICE, "MediaRenderer", 1}, ":")
             self.usn = UPnP.USN{[UPnP.USN.URN] = urn}
+            self.eventing = function(name, event)
+                log.debug("Denon", name)
+            end
             self.discovery = function(address, port, header, description)
                 local device = description.root.device
                 if "Denon" == device.manufacturer then
                     log.debug(device.friendlyName, address, port, header.location, tostring(header.usn))
                     for _, service in ipairs(device.serviceList.service) do
-                        upnp:eventing_subscribe(header.location, service.eventSubURL, header.usn.uuid, UPnP.USN(service.serviceId).urn, nil,
-                            function(name, event)
-                                log.debug("Denon", name)
-                            end)
+                        upnp:eventing_subscribe(header.location, service.eventSubURL, header.usn.uuid, UPnP.USN(service.serviceId).urn, nil, self.eventing)
                     end
                 end
             end
