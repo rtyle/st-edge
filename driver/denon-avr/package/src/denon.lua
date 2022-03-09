@@ -14,28 +14,35 @@ local M = {
 
         _init = function(class, self, upnp)
             self.upnp = upnp
-            local urn = table.concat({UPnP.USN.SCHEMAS_UPNP_ORG, UPnP.USN.DEVICE, "MediaRenderer", 1}, ":")
-            self.usn = UPnP.USN{[UPnP.USN.URN] = urn}
-            self.eventing = function(name, event)
-                -- decode event at as xml if we can
-                local decoded_ok, decoded = pcall(function()
-                    return xml.decode(event).root
+            self.media_renderer = UPnP.USN{[UPnP.USN.URN] = table.concat({UPnP.USN.SCHEMAS_UPNP_ORG, UPnP.USN.DEVICE, "MediaRenderer", 1}, ":")}
+            self.rendering_control = table.concat({UPnP.USN.UPNP_ORG, UPnP.USN.SERVICE_ID, "RenderingControl"}, ":")
+            self.eventing = function(name, encoded)
+                pcall(function()
+                    local event = xml.decode(encoded).root.Event.InstanceID
+                    local mute = event.Mute
+                    if mute then
+                        log.debug("Denon", "mute", mute._attr.val)
+                    end
+                    local volume = event.Volume
+                    if volume then
+                        log.debug("Denon", "volume", volume._attr.val)
+                    end
                 end)
-                if decoded then
-                    event = decoded
-                end
-                log.debug("Denon", name)
             end
             self.discovery = function(address, port, header, description)
                 local device = description.root.device
                 if "Denon" == device.manufacturer then
                     log.debug(device.friendlyName, address, port, header.location, tostring(header.usn))
                     for _, service in ipairs(device.serviceList.service) do
-                        upnp:eventing_subscribe(header.location, service.eventSubURL, header.usn.uuid, UPnP.USN(service.serviceId).urn, nil, self.eventing)
+                        local urn = UPnP.USN(service.serviceId).urn
+                        if urn == self.rendering_control then
+                            upnp:eventing_subscribe(header.location, service.eventSubURL, header.usn.uuid, urn, nil, self.eventing)
+                            break
+                        end
                     end
                 end
             end
-            upnp:discovery_subscribe(self.usn, self.discovery)
+            upnp:discovery_subscribe(self.media_renderer, self.discovery)
         end,
 
         poll = function(self, backoff_cap, read_timeout)
@@ -48,7 +55,7 @@ local M = {
                 cosock.spawn(function()
                     local backoff = 0
                     while true do
-                        self.upnp:discovery_search_multicast(self.usn)
+                        self.upnp:discovery_search_multicast(self.media_renderer)
                         -- rediscover after capped exponential backoff
                         -- or our receiver hears from our sender.
                         while cosock.socket.select({receiver}, {}, 8 << math.min(backoff, backoff_cap)) do

@@ -26,6 +26,8 @@ local USN = classify.single({
     SCHEMAS_UPNP_ORG    = "schemas-upnp-org",
     DEVICE              = "device",
     SERVICE             = "service",
+    UPNP_ORG            = "upnp-org",
+    SERVICE_ID          = "serviceId",
 
     _init = function(_, self, uri)
         if "string" == type(uri) then
@@ -144,7 +146,7 @@ return classify.single({    -- UPnP
                 self.Close(port)
             end
             local peer_address, peer_port = accept_socket:getpeername()
-            log.debug(self.name, "event", "accept", peer_address, peer_port)
+            log.debug(self.name, "receive", "accept", peer_address, peer_port)
             local reader = http:reader(accept_socket, self.read_timeout)
             willing_set[accept_socket] = function()
                 local response_ok, response = pcall(function()
