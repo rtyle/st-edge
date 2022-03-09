@@ -12,20 +12,18 @@ local M = {
         -- default arguments
         DISCOVER_BACKOFF_CAP    = 8,
 
-        _init = function(class, self, upnp)
+        _init = function(_, self, upnp)
             self.upnp = upnp
             self.media_renderer = UPnP.USN{[UPnP.USN.URN] = table.concat({UPnP.USN.SCHEMAS_UPNP_ORG, UPnP.USN.DEVICE, "MediaRenderer", 1}, ":")}
             self.rendering_control = table.concat({UPnP.USN.UPNP_ORG, UPnP.USN.SERVICE_ID, "RenderingControl"}, ":")
-            self.eventing = function(name, encoded)
+            self.eventing = function(_, encoded)
                 pcall(function()
                     local event = xml.decode(encoded).root.Event.InstanceID
-                    local mute = event.Mute
-                    if mute then
-                        log.debug("Denon", "mute", mute._attr.val)
-                    end
-                    local volume = event.Volume
-                    if volume then
-                        log.debug("Denon", "volume", volume._attr.val)
+                    for _, name in ipairs{"Mute", "Volume"} do
+                        local value = event[name]
+                        if value then
+                            log.debug("Denon", name, value._attr.channel, value._attr.val)
+                        end
                     end
                 end)
             end
