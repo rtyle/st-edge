@@ -15,11 +15,11 @@ local UPnP      = require "upnp"
 local RENDERING_CONTROL
     = table.concat({UPnP.USN.UPNP_ORG, UPnP.USN.SERVICE_ID, "RenderingControl"}, ":")
 
-local M
+local denon
 
 local Break = classify.error({})
 
-M = {
+denon = {
     ST = UPnP.USN{[UPnP.USN.URN] = table.concat({UPnP.USN.SCHEMAS_UPNP_ORG, UPnP.USN.DEVICE, "MediaRenderer", 1}, ":")},
 
     AVR = classify.single({
@@ -35,7 +35,7 @@ M = {
                     for _, name in ipairs{"Mute", "Volume"} do
                         local value = event[name]
                         if value then
-                            method = name:lower()
+                            local method = name:lower()
                             self[method](value._attr.channel, value._attr.val)
                         end
                     end
@@ -66,7 +66,7 @@ M = {
                     end
                 end
 
-                local discover = M.Discover(upnp, st, found)
+                local discover = denon.Discover(upnp, found, st)
                 while true do
                     local _, break_error = pcall(function()
                         discover:search()
@@ -92,10 +92,11 @@ M = {
     }),
 
     Discover = classify.single({
-        _init = function(_, self, upnp, st, found)
+        _init = function(_, self, upnp, found, st)
+            st = st or denon.ST
             self.upnp = upnp
-            self.st = st
             self.found = found
+            self.st = st
 
             -- self.discovery capture is garbage collected with self
             self.discovery = function(address, port, header, description)
@@ -115,35 +116,4 @@ M = {
     }),
 }
 
-local upnp = UPnP("192.168.1.20")
-
-local avr_set = {}
-
-local st = M.ST
-cosock.spawn(function()
-    local function found(address, port, header, device)
-        local uuid = header.usn.uuid
-        log.debug("found", uuid, address, port, header.location, device.friendlyName)
-        local avr = avr_set[uuid]
-        if not avr then
-            avr = M.AVR(uuid, upnp)
-            avr_set[uuid] = avr
-        end
-    end
-
-    local discover = M.Discover(upnp, st, found)
-    for _ = 1, 8 do
-        local _, break_error = pcall(function()
-            discover:search()
-            cosock.socket.sleep(8)
-        end)
-        if break_error then
-            local class_break_error = classify.class(break_error)
-            if Break ~= class_break_error then
-                error(break_error)
-            end
-        end
-    end
-end, "find" .. tostring(st))
-
-cosock.run()
+return denon
