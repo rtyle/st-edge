@@ -12,4 +12,4 @@ components:
     version: 1
   - id: mediaInputSource
   categories:
-  - name: network-audio
+  - name: NetworkAudio

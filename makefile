@@ -28,6 +28,9 @@ all: $(DRIVERS)
 clean:
 	rm -f $(PACKAGES) $(DRIVERS)
 
+driver/denon-avr/package.zip:		$(shell find driver/denon-avr/package	-follow -type f)
+	(cd $(basename $@); zip ../$(@F) $$(find . -follow) > /dev/null)
+
 driver/legrand-rflc/package.zip:	$(shell find driver/legrand-rflc/package	-follow -type f)
 	(cd $(basename $@); zip ../$(@F) $$(find . -follow) > /dev/null)
 
