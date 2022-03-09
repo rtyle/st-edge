@@ -35,8 +35,7 @@ denon = {
                     for _, name in ipairs{"Mute", "Volume"} do
                         local value = event[name]
                         if value then
-                            local method = name:lower()
-                            self[method](value._attr.channel, value._attr.val)
+                            self["eventing_" .. name:lower()](value._attr.channel, value._attr.val)
                         end
                     end
                 end)
@@ -82,12 +81,12 @@ denon = {
             end, "find" .. tostring(st))
         end,
 
-        mute = function(channel, value)
-            log.debug("AVR", "mute", channel, value)
+        eventing_mute = function(channel, value)
+            log.error("AVR", "event", "drop", "mute", channel, value)
         end,
 
-        volume = function(channel, value)
-            log.debug("AVR", "volume", channel, value)
+        eventing_volume = function(channel, value)
+            log.error("AVR", "event", "drop", "volume", channel, value)
         end,
     }),
 
