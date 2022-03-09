@@ -73,7 +73,7 @@ return {
 
     -- send an HTTP request to url for method with header
     -- return HTTP response if successful; otherwise, nil and the error
-    transact = function(self, url, method, read_timeout, header)
+    transact = function(self, url, method, read_timeout, header, body)
         -- parse url
         local address, port, path = url:gmatch("http://([%a%d-%.]+):?(%d*)(/.*)")()
         if not (address and port and path) then
@@ -107,6 +107,9 @@ return {
             for _, field in ipairs(header) do
                 table.insert(request, field)
             end
+        end
+        if body then
+            table.insert(request, "CONTENT-LENGTH: " .. #body)
         end
         table.insert(request, self.EOL)
 

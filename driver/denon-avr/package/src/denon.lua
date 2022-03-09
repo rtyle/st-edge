@@ -1,6 +1,8 @@
 local cosock    = require "cosock"
 local log       = require "log"
 
+local xml       = require "xml"
+
 local classify  = require "classify"
 local UPnP      = require "upnp"
 
@@ -15,6 +17,13 @@ local M = {
             local urn = table.concat({UPnP.USN.SCHEMAS_UPNP_ORG, UPnP.USN.DEVICE, "MediaRenderer", 1}, ":")
             self.usn = UPnP.USN{[UPnP.USN.URN] = urn}
             self.eventing = function(name, event)
+                -- decode event at as xml if we can
+                local decoded_ok, decoded = pcall(function()
+                    return xml.decode(event).root
+                end)
+                if decoded then
+                    event = decoded
+                end
                 log.debug("Denon", name)
             end
             self.discovery = function(address, port, header, description)
@@ -51,7 +60,6 @@ local M = {
                 end, "denon.Inventory.discover")
             end
         end,
-
     })
 }
 

@@ -175,15 +175,8 @@ return classify.single({    -- UPnP
                                 if not statevar_set then
                                     log.warn(self.name, "event", "drop", path, name)
                                 else
-                                    -- decode event at node as xml if we can
-                                    local decode_ok, event = pcall(function()
-                                        return xml.decode(node).root
-                                    end)
-                                    if not decode_ok then
-                                        event = node
-                                    end
                                     for eventing in pairs(statevar_set) do
-                                        eventing(name, event)
+                                        eventing(name, node)
                                     end
                                 end
                             else
