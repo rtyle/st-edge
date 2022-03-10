@@ -15,10 +15,9 @@ local UPnP      = require "upnp"
 local RENDERING_CONTROL
     = table.concat({UPnP.USN.UPNP_ORG, UPnP.USN.SERVICE_ID, "RenderingControl"}, ":")
 
-local denon
-
 local Break = classify.error({})
 
+local denon
 denon = {
     ST = UPnP.USN{[UPnP.USN.URN] = table.concat({UPnP.USN.SCHEMAS_UPNP_ORG, UPnP.USN.DEVICE, "MediaRenderer", 1}, ":")},
 
@@ -82,11 +81,11 @@ denon = {
         end,
 
         eventing_mute = function(channel, value)
-            log.error("AVR", "event", "drop", "mute", channel, value)
+            log.warn("AVR", "event", "drop", "mute", channel, value)
         end,
 
         eventing_volume = function(channel, value)
-            log.error("AVR", "event", "drop", "volume", channel, value)
+            log.warn("AVR", "event", "drop", "volume", channel, value)
         end,
     }),
 
