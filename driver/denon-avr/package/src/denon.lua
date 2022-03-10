@@ -71,8 +71,7 @@ denon = {
                         cosock.socket.sleep(60)
                     end)
                     if break_error then
-                        local class_break_error = classify.class(break_error)
-                        if Break ~= class_break_error then
+                        if Break ~= classify.class(break_error) then
                             error(break_error)
                         end
                     end
