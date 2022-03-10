@@ -6,8 +6,8 @@ local xml       = require "xml"
 local classify  = require "classify"
 local UPnP      = require "upnp"
 
--- at the time of this writing, the latest firmware for
--- Denon AVR-X4100W UPnP service eventing are all worthless for our purposes
+-- at the time of this writing, the latest Denon AVR-X4100W firmware,
+-- UPnP service eventing are all worthless for our purposes
 -- except RenderingControl, which will sendEvents only on its LastChange state variable.
 -- this may have Mute and/or Volume state but only for the Master channel.
 -- we are kept in sync with the device's Mute state.
