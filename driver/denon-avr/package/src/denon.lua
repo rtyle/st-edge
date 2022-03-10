@@ -41,6 +41,7 @@ denon = {
             end
 
             -- search until location and device for uuid is found
+            -- TODO: ... or stopped
             local st = UPnP.USN{[UPnP.USN.UUID] = uuid}
             cosock.spawn(function()
                 local function found(address, port, header, device)
