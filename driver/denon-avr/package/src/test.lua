@@ -6,16 +6,16 @@ local UPnP      = require "upnp"
 
 local denon     = require "denon"
 
-local upnp = UPnP("192.168.1.20")
+local upnp = UPnP()
 
 local Break = classify.error({})
 
 local avr_set = {}
 
 cosock.spawn(function()
-    local function found(address, port, header, device)
+    local function find(address, port, header, device)
         local uuid = header.usn.uuid
-        log.debug("found", uuid, address, port, header.location, device.friendlyName)
+        log.debug("test\tfind", uuid, address, port, header.location, device.friendlyName)
         local avr = avr_set[uuid]
         if not avr then
             avr = denon.AVR(uuid, upnp)
@@ -23,7 +23,7 @@ cosock.spawn(function()
         end
     end
 
-    local discover = denon.Discover(upnp, found)
+    local discover = denon.Discover(upnp, find)
     for _ = 1, 8 do
         local _, break_error = pcall(function()
             discover:search()
@@ -36,6 +36,6 @@ cosock.spawn(function()
             end
         end
     end
-end, "find" .. tostring(denon.ST))
+end, "test\tfind" .. tostring(denon.ST))
 
 cosock.run()

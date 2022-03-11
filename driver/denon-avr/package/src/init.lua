@@ -1,6 +1,7 @@
 -- vim: ts=4:sw=4:expandtab
 
 -- require st provided libraries
+local cosock        = require "cosock"
 local Driver        = require "st.driver"
 local log           = require "log"
 
@@ -8,6 +9,7 @@ local classify      = require "classify"
 local Semaphore     = require "semaphore"
 
 local denon         = require "denon"
+local UPnP          = require "upnp"
 
 -- device models/types, sub_drivers
 local PARENT        = "avr"
@@ -65,6 +67,7 @@ local ready = {
 local Adapter = classify.single({
     _init = function(_, self, driver, device)
         log.debug("init", device.device_network_id, device.st_store.label)
+        self.driver = driver
         self.device = device
         device:set_field(ADAPTER, self)
     end,
@@ -73,6 +76,7 @@ local Adapter = classify.single({
         local device = self.device
         self.device:set_field(ADAPTER, nil)
         self.device = nil
+        self.driver = nil
         log.debug("removed", device.device_network_id, device.st_store.label)
         return device.device_network_id
     end,
@@ -103,10 +107,10 @@ local Adapter = classify.single({
 })
 
 local Child
-local upnp
+local upnp = UPnP()
 
-Parent = classify.multiple({
-    _init = function(class, self, driver, device)
+local Parent = classify.multiple({
+    _init = function(_, self, driver, device)
         Adapter:_init(self, driver, device)
         denon.AVR:_init(self, device.device_network_id, upnp)
     end,
@@ -147,6 +151,9 @@ Child = classify.single({
 }, Adapter)
 
 local driver = Driver("denon-avr", {
+    lan_info_changed_handler = function(_)
+        -- TODO: UPnP eventing update for new address
+    end,
 
     discovery = function(driver, _, should_continue)
         local function found(address, port, header, device)
@@ -187,7 +194,5 @@ local driver = Driver("denon-avr", {
         },
     },
 })
-
-upnp = UPnP(driver.environment_info.hub_ipv4)
 
 driver:run()

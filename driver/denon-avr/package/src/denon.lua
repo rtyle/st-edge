@@ -14,18 +14,19 @@ local UPnP      = require "upnp"
 -- we are not kept in sync with the device's Volume state and its value may be wrong.
 local RENDERING_CONTROL
     = table.concat({UPnP.USN.UPNP_ORG, UPnP.USN.SERVICE_ID, "RenderingControl"}, ":")
+local MEDIA_RENDERER
+    = table.concat({UPnP.USN.SCHEMAS_UPNP_ORG, UPnP.USN.DEVICE, "MediaRenderer", 1}, ":")
 
-local Break = classify.error({})
-
+local AVR = "AVR"
 local denon
 denon = {
-    ST = UPnP.USN{[UPnP.USN.URN] = table.concat({UPnP.USN.SCHEMAS_UPNP_ORG, UPnP.USN.DEVICE, "MediaRenderer", 1}, ":")},
+    ST = UPnP.USN{[UPnP.USN.URN] = MEDIA_RENDERER},
 
     AVR = classify.single({
         _init = function(_, self, uuid, upnp)
-            log.debug("AVR", uuid)
             self.upnp = upnp
             self.uuid = uuid
+            log.debug(AVR, self.uuid)
 
             -- self.eventing capture is garbage collected with self
             self.eventing = function(_, encoded)
@@ -34,23 +35,25 @@ denon = {
                     for _, name in ipairs{"Mute", "Volume"} do
                         local value = event[name]
                         if value then
-                            self["eventing_" .. name:lower()](value._attr.channel, value._attr.val)
+                            self["eventing_" .. name:lower()](self, value._attr.channel, value._attr.val)
                         end
                     end
                 end)
             end
 
-            -- search until location and device for uuid is found
-            -- TODO: ... or stopped
+            -- search until we find location and device for uuid
+            local find_sender, find_receiver = cosock.channel.new()
+            self.find_sender = find_sender
             local st = UPnP.USN{[UPnP.USN.UUID] = uuid}
             cosock.spawn(function()
-                local function found(address, port, header, device)
-                    local found_uuid = header.usn.uuid
-                    if found_uuid ~= self.uuid then
-                        log.error("found", found_uuid, "not", self.uuid)
+                local function find(address, port, header, device)
+                    local find_uuid = header.usn.uuid
+                    if find_uuid ~= self.uuid then
+                        log.error(AVR, self.uuid, "find", "not", find_uuid)
                         return
                     end
-                    log.debug("found", uuid, address, port, header.location, device.friendlyName)
+                    find_sender:send(1)
+                    log.debug(AVR, self.uuid, "find", address, port, header.location, device.friendlyName)
                     self.location = header.location
                     self.device = device
                     for _, service in ipairs(device.serviceList.service) do
@@ -61,46 +64,53 @@ denon = {
                             -- unsubscribe is implicit on garbage collection of self
                             break
                         end
-                        Break()
                     end
                 end
 
-                local discover = denon.Discover(upnp, found, st)
+                local discover = denon.Discover(upnp, find, st)
+                pcall(discover.search, discover)
                 while true do
-                    local _, break_error = pcall(function()
-                        discover:search()
-                        cosock.socket.sleep(60)
-                    end)
-                    if break_error then
-                        if Break ~= classify.class(break_error) then
-                            error(break_error)
-                        end
+                    local ready, select_error = cosock.socket.select({find_receiver}, {}, 60)
+                    if select_error then
+                        -- stop on unexpected error
+                        log.error(AVR, self.uuid, "find", select_error)
+                        break
                     end
+                    if ready then
+                        find_receiver:receive()
+                        break
+                    end
+                    pcall(discover.search, discover)
                 end
-            end, "find" .. tostring(st))
+                log.debug(AVR, self.uuid, "find", "exiting")
+            end, table.concat({AVR, self.uuid, "find"}, "\t"))
         end,
 
-        eventing_mute = function(channel, value)
-            log.warn("AVR", "event", "drop", "mute", channel, value)
+        stop = function(self)
+            self.find_sender:send(0)
         end,
 
-        eventing_volume = function(channel, value)
-            log.warn("AVR", "event", "drop", "volume", channel, value)
+        eventing_mute = function(self, channel, value)
+            log.warn(AVR, self.uuid, "event", "drop", "mute", channel, value)
+        end,
+
+        eventing_volume = function(self, channel, value)
+            log.warn(AVR, self.uuid, "event", "drop", "volume", channel, value)
         end,
     }),
 
     Discover = classify.single({
-        _init = function(_, self, upnp, found, st)
+        _init = function(_, self, upnp, find, st)
             st = st or denon.ST
             self.upnp = upnp
-            self.found = found
+            self.find = find
             self.st = st
 
             -- self.discovery capture is garbage collected with self
             self.discovery = function(address, port, header, description)
                 local device = description.root.device
                 if "Denon" == device.manufacturer then
-                    self.found(address, port, header, device)
+                    self.find(address, port, header, device)
                 end
             end
 

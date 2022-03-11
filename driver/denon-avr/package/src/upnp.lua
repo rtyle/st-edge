@@ -15,6 +15,14 @@ local function epoch_time()
     return date.diff(date(true), date.epoch()):spanseconds()
 end
 
+local function address_for(peer)
+    local socket = cosock.socket.udp()
+    socket:setpeername(peer, 0)
+    local address = socket:getsockname()
+    socket:close()
+    return address
+end
+
 local USN = classify.single({
     -- URI schemes
     UUID        = "uuid",
@@ -79,11 +87,10 @@ return classify.single({    -- UPnP
     Break = classify.error({}), -- construct to break out of UPnP thread loop
     Close = classify.error({}), -- construct to close (what was ready is no longer willing or able)
 
-    _init = function(_, self, address, read_timeout, _name)
-        self.address = address
+    _init = function(_, self, read_timeout, _name)
         self.read_timeout = read_timeout or 1
         self.name = _name or "UPnP"
-        log.debug(self.name, "address", address)
+        log.debug(self.name)
 
         local willing_set = {}
 
@@ -139,7 +146,7 @@ return classify.single({    -- UPnP
         local listen_socket = cosock.socket.bind('*', 0)
         local _, port = listen_socket:getsockname()
         self.port = port
-        log.debug(self.name, "event", "socat - TCP:" .. self.address .. ":" .. self.port .. ",crnl")
+        log.debug(self.name, "event", "socat - TCP:" .. address_for("1.1.1.1") .. ":" .. self.port .. ",crnl")
         willing_set[listen_socket] = function()
             local accept_socket, accept_error = listen_socket:accept()
             if accept_error then
@@ -314,7 +321,9 @@ return classify.single({    -- UPnP
     end,
 
     eventing_new = function(self, url, path)
-        local callback = "http://" .. self.address .. ":" .. self.port .. "/" .. path
+        local peer = url:gmatch("http://([%a%d-%.]+):?(%d*)(/.*)")()
+        local address = address_for(peer)
+        local callback = "http://" .. address .. ":" .. self.port .. "/" .. path
         local request_header = {
             "CALLBACK: <" .. callback .. ">",
             "NT: upnp:event",
