@@ -24,7 +24,7 @@ cosock.spawn(function()
     end
 
     local discover = denon.Discover(upnp, find)
-    for _ = 1, 8 do
+    for _ = 1, 2 do
         local _, break_error = pcall(function()
             discover:search()
             cosock.socket.sleep(8)

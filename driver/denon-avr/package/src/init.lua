@@ -19,7 +19,9 @@ local CHILD         = "zone"
 local ADAPTER       = "adapter"
 local REMOVED       = "removed"
 
-local LABEL         = "AVR"
+local LABEL         = "Denon AVR"
+
+local LOG           = "driver"
 
 -- use a binary Semaphore to serialize access to driver:try_create_device() calls;
 -- otherwise, these requests tend to get ignored or not completed through lifecycle init.
@@ -66,7 +68,7 @@ local ready = {
 
 local Adapter = classify.single({
     _init = function(_, self, driver, device)
-        log.debug("init", device.device_network_id, device.st_store.label)
+        log.debug(LOG, "init", device.device_network_id, device.st_store.label)
         self.driver = driver
         self.device = device
         device:set_field(ADAPTER, self)
@@ -77,7 +79,7 @@ local Adapter = classify.single({
         self.device:set_field(ADAPTER, nil)
         self.device = nil
         self.driver = nil
-        log.debug("removed", device.device_network_id, device.st_store.label)
+        log.debug(LOG, "removed", device.device_network_id, device.st_store.label)
         return device.device_network_id
     end,
 
@@ -89,9 +91,9 @@ local Adapter = classify.single({
     end,
 
     create = function(driver, device_network_id, model, label, parent_device_id)
-        log.debug("create?", device_network_id, model, label, parent_device_id)
+        log.debug(LOG, "create?", device_network_id, model, label, parent_device_id)
         try_create_device_semaphore:acquire(function()
-            log.debug("create!", device_network_id, model, label, parent_device_id)
+            log.debug(LOG, "create!", device_network_id, model, label, parent_device_id)
             driver:try_create_device{
                 type = "LAN",
                 device_network_id = device_network_id,
@@ -150,22 +152,22 @@ Child = classify.single({
     end,
 }, Adapter)
 
-local driver = Driver("denon-avr", {
+Driver("denon-avr", {
     lan_info_changed_handler = function(_)
         -- TODO: UPnP eventing update for new address
     end,
 
     discovery = function(driver, _, should_continue)
-        local function found(address, port, header, device)
+        local function find(address, port, header, device)
             local device_network_id = header.usn.uuid
-            log.debug("found", device_network_id, address, port, header.location, device.friendlyName)
+            log.debug(LOG, "find", device_network_id, address, port, header.location, device.friendlyName)
             local adapter = ready.adapter[device_network_id]
             if not adapter then
                 Parent.create(driver, device_network_id)
             end
         end
 
-        local discover = denon.Discover(upnp, found)
+        local discover = denon.Discover(upnp, find)
 
         while should_continue() do
             discover:search()
@@ -193,6 +195,4 @@ local driver = Driver("denon-avr", {
             },
         },
     },
-})
-
-driver:run()
+}):run()

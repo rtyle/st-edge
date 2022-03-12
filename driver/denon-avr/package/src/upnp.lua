@@ -143,7 +143,13 @@ return classify.single({    -- UPnP
         -- and UPnP:eventing* methods
         self.eventing_callback = {}
         self.eventing_subscription = {}
-        local listen_socket = cosock.socket.bind('*', 0)
+        -- SmartThings implementation of cosock.socket.bind convenience function
+        -- will fail on skt:setoption("reuseaddr", true)
+        -- As commented, even they are not sure why they are doing this step
+        -- It is not needed so we perform only the tcp socket create, bind and listen steps.
+        local listen_socket = cosock.socket.tcp()
+        listen_socket:bind("*", 0)
+        listen_socket:listen(8)
         local _, port = listen_socket:getsockname()
         self.port = port
         log.debug(self.name, "event", "socat - TCP:" .. address_for("1.1.1.1") .. ":" .. self.port .. ",crnl")
@@ -156,9 +162,7 @@ return classify.single({    -- UPnP
             log.debug(self.name, "receive", "accept", peer_address, peer_port)
             local reader = http:reader(accept_socket, self.read_timeout)
             willing_set[accept_socket] = function()
-                local response_ok, response = pcall(function()
-                    return http:message(reader)
-                end)
+                local response_ok, response = pcall(http.message, http, reader)
                 if not response_ok then
                     self.Close(peer_address, peer_port)
                 end
@@ -217,9 +221,7 @@ return classify.single({    -- UPnP
                 end
                 while 0 < #ready_list do
                     local ready = table.remove(ready_list, 1)
-                    local ok, able_error = pcall(function()
-                        willing_set[ready]()
-                    end)
+                    local ok, able_error = pcall(willing_set[ready])
                     if not ok then
                         local class_able_error = classify.class(able_error)
                         if self.Break == class_able_error then
@@ -321,7 +323,7 @@ return classify.single({    -- UPnP
     end,
 
     eventing_new = function(self, url, path)
-        local peer = url:gmatch("http://([%a%d-%.]+):?(%d*)(/.*)")()
+        local peer = table.unpack(http:url_parse(url))
         local address = address_for(peer)
         local callback = "http://" .. address .. ":" .. self.port .. "/" .. path
         local request_header = {

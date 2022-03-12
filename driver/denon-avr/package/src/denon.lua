@@ -17,7 +17,7 @@ local RENDERING_CONTROL
 local MEDIA_RENDERER
     = table.concat({UPnP.USN.SCHEMAS_UPNP_ORG, UPnP.USN.DEVICE, "MediaRenderer", 1}, ":")
 
-local AVR = "AVR"
+local LOG = "AVR"
 local denon
 denon = {
     ST = UPnP.USN{[UPnP.USN.URN] = MEDIA_RENDERER},
@@ -26,7 +26,7 @@ denon = {
         _init = function(_, self, uuid, upnp)
             self.upnp = upnp
             self.uuid = uuid
-            log.debug(AVR, self.uuid)
+            log.debug(LOG, self.uuid)
 
             -- self.eventing capture is garbage collected with self
             self.eventing = function(_, encoded)
@@ -49,11 +49,11 @@ denon = {
                 local function find(address, port, header, device)
                     local find_uuid = header.usn.uuid
                     if find_uuid ~= self.uuid then
-                        log.error(AVR, self.uuid, "find", "not", find_uuid)
+                        log.error(LOG, self.uuid, "find", "not", find_uuid)
                         return
                     end
                     find_sender:send(1)
-                    log.debug(AVR, self.uuid, "find", address, port, header.location, device.friendlyName)
+                    log.debug(LOG, self.uuid, "find", address, port, header.location, device.friendlyName)
                     self.location = header.location
                     self.device = device
                     for _, service in ipairs(device.serviceList.service) do
@@ -68,22 +68,21 @@ denon = {
                 end
 
                 local discover = denon.Discover(upnp, find, st)
-                pcall(discover.search, discover)
                 while true do
+                    pcall(discover.search, discover)
                     local ready, select_error = cosock.socket.select({find_receiver}, {}, 60)
                     if select_error then
                         -- stop on unexpected error
-                        log.error(AVR, self.uuid, "find", select_error)
+                        log.error(LOG, self.uuid, "find", select_error)
                         break
                     end
                     if ready then
                         find_receiver:receive()
                         break
                     end
-                    pcall(discover.search, discover)
                 end
-                log.debug(AVR, self.uuid, "find", "exiting")
-            end, table.concat({AVR, self.uuid, "find"}, "\t"))
+                log.debug(LOG, self.uuid, "find", "exiting")
+            end, table.concat({LOG, self.uuid, "find"}, "\t"))
         end,
 
         stop = function(self)
@@ -91,11 +90,11 @@ denon = {
         end,
 
         eventing_mute = function(self, channel, value)
-            log.warn(AVR, self.uuid, "event", "drop", "mute", channel, value)
+            log.warn(LOG, self.uuid, "event", "drop", "mute", channel, value)
         end,
 
         eventing_volume = function(self, channel, value)
-            log.warn(AVR, self.uuid, "event", "drop", "volume", channel, value)
+            log.warn(LOG, self.uuid, "event", "drop", "volume", channel, value)
         end,
     }),
 
