@@ -106,7 +106,7 @@ return classify.single({    -- UPnP
         -- support UPnP Discovery
         -- with a udp socket
         -- and UPnP:discovery* methods
-        self.discovery_subscription = {}
+        self.discovery_subscription = WeakKeys()
         self.discovery_socket = cosock.socket.udp()
         willing[self.discovery_socket] = function()
             -- receive and process one HTTPU datagram to fulfill matching discovery_subscription
@@ -117,23 +117,53 @@ return classify.single({    -- UPnP
                 coroutine.yield(datagram)
                 return nil, "closed"
             end))
-            local ok, response = pcall(function()
-                local status, header = table.unpack(http:message(reader))
-                local _, code, reason = table.unpack(status)
-                if http.OK ~= code then
-                    error(reason or code)
+            local discovery_response_ok, discovery_response = pcall(http.message, http, reader)
+            if not discovery_response_ok then
+                log.error(self.name, "discovery", "receive", discovery_response)
+                return
+            end
+            local discovery_status, discovery_header = table.unpack(discovery_response)
+            local _, discovery_code, discovery_reason = table.unpack(discovery_status)
+            if http.OK ~= discovery_code then
+                log.error(self.name, "discovery", "receive", discovery_reason or discovery_code)
+                return
+            end
+            local usn = USN(discovery_header.usn)
+            if not (next(self.discovery_subscription) and (function()
+                for scheme, value in pairs(usn) do
+                    if self.discovery_subscription[table.concat({scheme, value}, ":")] then
+                        return true
+                    end
                 end
-                return {header, xml.decode(http:get(header.location, self.read_timeout)[3]).root}
+            end)()) then
+                log.warn(self.name, "discovery", "receive", "drop", discovery_header.usn)
+                return
+            end
+            local location_response_ok, location_response
+                = pcall(http.get, http, discovery_header.location, self.read_timeout)
+            if not location_response_ok then
+                log.error(self.name, "discovery", "receive", "location", location_response)
+                return
+            end
+            local location_status, _, location_body = table.unpack(location_response)
+            local _, location_code, location_reason = table.unpack(location_status)
+            if http.OK ~= location_code then
+                log.error(self.name, "discovery", "receive", "location", location_reason or location_code)
+                return
+            end
+            local description_ok, description = pcall(function()
+                return xml.decode(location_body).root
             end)
-            if ok then
-                local header, description = table.unpack(response)
-                header.usn = USN(header.usn)
-                for scheme, value in pairs(header.usn) do
-                    local set = self.discovery_subscription[table.concat({scheme, value}, ":")]
-                    if set then
-                        for discovery in pairs(set) do
-                            discovery(peer_address, peer_port, header, description)
-                        end
+            if not description_ok then
+                log.error(self.name, "discovery", "receive", "description", description, location_body)
+                return
+            end
+            discovery_header.usn = usn
+            for scheme, value in pairs(usn) do
+                local set = self.discovery_subscription[table.concat({scheme, value}, ":")]
+                if set then
+                    for discovery in pairs(set) do
+                        discovery(peer_address, peer_port, discovery_header, description)
                     end
                 end
             end
@@ -305,6 +335,7 @@ return classify.single({    -- UPnP
     end,
 
     discovery_search = function(self, address, port, st, mx)
+        log.debug(self.name, "discovery", "search", address, port, st, mx)
         local request = {
             table.concat({"M-SEARCH", "*", self.PROTOCOL}, " "),
             table.concat({"HOST", table.concat({address, port}, ":")}, ": "),
