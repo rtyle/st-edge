@@ -19,8 +19,6 @@ local CHILD         = "zone"
 local ADAPTER       = "adapter"
 local REMOVED       = "removed"
 
-local LABEL         = "Denon AVR"
-
 local LOG           = "driver"
 
 -- use a binary Semaphore to serialize access to driver:try_create_device() calls;
@@ -93,44 +91,54 @@ local Adapter = classify.single({
     create = function(driver, device_network_id, model, label, parent_device_id)
         log.debug(LOG, "create?", device_network_id, model, label, parent_device_id)
         try_create_device_semaphore:acquire(function()
-            log.debug(LOG, "create!", device_network_id, model, label, parent_device_id)
-            driver:try_create_device{
-                type = "LAN",
-                device_network_id = device_network_id,
-                label = label,
-                profile = model,
-                manufacturer = "rtyle",
-                model = model,
-                parent_device_id = parent_device_id,
-            }
+            local adapter = ready.adapter[device_network_id]
+            if adapter then
+                try_create_device_semaphore:release()
+            else
+                log.debug(LOG, "create!", device_network_id, model, label, parent_device_id)
+                driver:try_create_device{
+                    type = "LAN",
+                    device_network_id = device_network_id,
+                    label = label,
+                    profile = model,
+                    manufacturer = "rtyle",
+                    model = model,
+                    parent_device_id = parent_device_id,
+                }
+            end
         end)
         return device_network_id
-    end
+    end,
 })
 
 local Child
 local upnp = UPnP()
 
-local Parent = classify.multiple({
-    _init = function(_, self, driver, device)
-        Adapter:_init(self, driver, device)
-        denon.AVR:_init(self, device.device_network_id, upnp)
+local Parent = classify.single({
+    _init = function(class, self, driver, device)
+        classify.super(class):_init(self, driver, device)
+        self.avr = denon.AVR(device.device_network_id, upnp)
     end,
 
-    create = function(driver, device_network_id)
+    removed = function(self)
+        self.avr = nil
+        return Adapter.removed(self)
+    end,
+
+    create = function(driver, device_network_id, label)
         ready:acquire(
             Adapter.create(driver,
                 device_network_id,
                 PARENT,
-                LABEL),
+                label),
             function(parent)
                 for _, zone in ipairs{"MainZone", "Zone2", "Zone3"} do
-                    Child.create(driver, parent, zone)
+                    Child.create(driver, parent, label, zone)
                 end
             end
         )
     end,
-}, Adapter, denon.AVR)
+}, Adapter)
 
 Child = classify.single({
     _init = function(class, self, driver, device)
@@ -143,11 +151,16 @@ Child = classify.single({
         end)
     end,
 
-    create = function(driver, parent, zone)
+    removed = function(self)
+        self.parent = nil
+        return Adapter.removed(self)
+    end,
+
+    create = function(driver, parent, label, zone)
         Adapter.create(driver,
             table.concat({parent.device.device_network_id, zone}, "\t"),
             CHILD,
-            table.concat({LABEL, zone}, " "),
+            table.concat({label, zone}, " "),
             parent.device.id)
     end,
 }, Adapter)
@@ -158,17 +171,10 @@ Driver("denon-avr", {
     end,
 
     discovery = function(driver, _, should_continue)
-        local function find(address, port, header, device)
-            local device_network_id = header.usn.uuid
-            log.debug(LOG, "find", device_network_id, address, port, header.location, device.friendlyName)
-            local adapter = ready.adapter[device_network_id]
-            if not adapter then
-                Parent.create(driver, device_network_id)
-            end
+        local function find(_, _, header, device)
+            Parent.create(driver, header.usn.uuid, device.friendlyName)
         end
-
         local discover = denon.Discover(upnp, find)
-
         while should_continue() do
             discover:search()
             cosock.socket.sleep(8)

@@ -66,6 +66,14 @@ local USN = classify.single({
     end,
 })
 
+local function list_from(set)
+    local result = {}
+    for element in pairs(set) do
+        table.insert(result, element)
+    end
+    return result
+end
+
 -- use for subscription tables
 -- unsubscription is implicit after garbage collection of subscribed method
 local WeakKeys = classify.single({
@@ -92,24 +100,15 @@ return classify.single({    -- UPnP
         self.name = _name or "UPnP"
         log.debug(self.name)
 
-        local willing_set = {}
-
-        -- receive and subscribe thread control
-        local receive_sender, receive_receiver = cosock.channel.new()
-        self.receive_sender = receive_sender
-        willing_set[receive_receiver] = function()
-            receive_receiver:receive()
-            self.Break()
-        end
-        local subscribe_sender, subscribe_receiver = cosock.channel.new()
-        self.subscribe_sender = subscribe_sender
+        -- set of willing receivers
+        local willing = {}
 
         -- support UPnP Discovery
         -- with a udp socket
         -- and UPnP:discovery* methods
         self.discovery_subscription = {}
         self.discovery_socket = cosock.socket.udp()
-        willing_set[self.discovery_socket] = function()
+        willing[self.discovery_socket] = function()
             -- receive and process one HTTPU datagram to fulfill matching discovery_subscription
             local peer_address, peer_port
             local reader = Reader(coroutine.wrap(function()
@@ -119,13 +118,15 @@ return classify.single({    -- UPnP
                 return nil, "closed"
             end))
             local ok, response = pcall(function()
-                local action, header = table.unpack(http:message(reader))
-                return {action, header, xml.decode(http:get(header.location, self.read_timeout)[3]).root}
+                local status, header = table.unpack(http:message(reader))
+                local _, code, reason = table.unpack(status)
+                if http.OK ~= code then
+                    error(reason or code)
+                end
+                return {header, xml.decode(http:get(header.location, self.read_timeout)[3]).root}
             end)
-            if not ok then
-                log.error(self.name, "discovery", peer_address, peer_port, response)
-            else
-                local _, header, description = table.unpack(response)
+            if ok then
+                local header, description = table.unpack(response)
                 header.usn = USN(header.usn)
                 for scheme, value in pairs(header.usn) do
                     local set = self.discovery_subscription[table.concat({scheme, value}, ":")]
@@ -153,7 +154,7 @@ return classify.single({    -- UPnP
         local _, port = listen_socket:getsockname()
         self.port = port
         log.debug(self.name, "event", "socat - TCP:" .. address_for("1.1.1.1") .. ":" .. self.port .. ",crnl")
-        willing_set[listen_socket] = function()
+        willing[listen_socket] = function()
             local accept_socket, accept_error = listen_socket:accept()
             if accept_error then
                 self.Close(port)
@@ -161,7 +162,7 @@ return classify.single({    -- UPnP
             local peer_address, peer_port = accept_socket:getpeername()
             log.debug(self.name, "receive", "accept", peer_address, peer_port)
             local reader = http:reader(accept_socket, self.read_timeout)
-            willing_set[accept_socket] = function()
+            willing[accept_socket] = function()
                 local response_ok, response = pcall(http.message, http, reader)
                 if not response_ok then
                     self.Close(peer_address, peer_port)
@@ -206,22 +207,24 @@ return classify.single({    -- UPnP
         end
 
         -- receive thread
+        local receive_receiver
+        self.receive_sender, receive_receiver = cosock.channel.new()
+        willing[receive_receiver] = function()
+            receive_receiver:receive()
+            self.Break()
+        end
         cosock.spawn(function()
             while receive_receiver do
                 -- wait for anything that we are willing to receive from
-                local willing_list = {}
-                for willing in pairs(willing_set) do
-                    table.insert(willing_list, willing)
-                end
-                local ready_list, select_error = cosock.socket.select(willing_list)
+                local ready, select_error = cosock.socket.select(list_from(willing))
                 if select_error then
                     -- stop on unexpected error
                     log.error(self.name, "receive", "select", select_error)
                     break
                 end
-                while 0 < #ready_list do
-                    local ready = table.remove(ready_list, 1)
-                    local ok, able_error = pcall(willing_set[ready])
+                while 0 < #ready do
+                    local receiver = table.remove(ready, 1)
+                    local ok, able_error = pcall(willing[receiver])
                     if not ok then
                         local class_able_error = classify.class(able_error)
                         if self.Break == class_able_error then
@@ -231,21 +234,23 @@ return classify.single({    -- UPnP
                             if self.Close == class_able_error then
                                 log.debug(self.name, "receive", "close", table.unpack(able_error))
                             else
-                                log.debug(self.name, "receive", "close", able_error)
+                                log.error(self.name, "receive", "close", able_error)
                             end
-                            ready:close()
-                            willing_set[ready] = nil
+                            receiver:close()
+                            willing[receiver] = nil
                         end
                     end
                 end
             end
-            for willing in pairs(willing_set) do
-                willing:close()
+            for receiver in pairs(willing) do
+                receiver:close()
             end
-            willing_set = {}
+            willing = {}
         end, table.concat({self.name, "receive"}, "\t"))
 
         -- subscribe thread
+        local subscribe_receiver
+        self.subscribe_sender, subscribe_receiver = cosock.channel.new()
         cosock.spawn(function()
             while true do
                 local timeout_min = nil -- forever

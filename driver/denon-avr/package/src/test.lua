@@ -36,6 +36,8 @@ cosock.spawn(function()
             end
         end
     end
+
+    upnp:stop()
 end, "test\tfind" .. tostring(denon.ST))
 
 cosock.run()
