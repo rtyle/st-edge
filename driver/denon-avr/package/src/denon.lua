@@ -42,8 +42,8 @@ denon = {
             end
 
             -- search until we find location and device for uuid
-            local find_sender, find_receiver = cosock.channel.new()
-            self.find_sender = find_sender
+            local find_receiver
+            self.find_sender, find_receiver = cosock.channel.new()
             local st = UPnP.USN{[UPnP.USN.UUID] = uuid}
             cosock.spawn(function()
                 local function find(address, port, header, device)
@@ -52,7 +52,7 @@ denon = {
                         log.error(LOG, self.uuid, "find", "not", find_uuid)
                         return
                     end
-                    find_sender:send(1)
+                    self.find_sender:send(1)
                     log.debug(LOG, self.uuid, "find", address, port, header.location, device.friendlyName)
                     self.location = header.location
                     self.device = device
