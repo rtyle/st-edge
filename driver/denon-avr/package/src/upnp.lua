@@ -106,10 +106,10 @@ return classify.single({    -- UPnP
         -- support UPnP Discovery
         -- with a udp socket
         -- and UPnP:discovery* methods
-        self.discovery_subscription = WeakKeys()
+        self.discovery_notification = WeakKeys()
         self.discovery_socket = cosock.socket.udp()
         willing[self.discovery_socket] = function()
-            -- receive and process one HTTPU datagram to fulfill matching discovery_subscription
+            -- receive and process one HTTPU datagram to fulfill matching discovery_notification
             local peer_address, peer_port
             local reader = Reader(coroutine.wrap(function()
                 local datagram
@@ -129,9 +129,9 @@ return classify.single({    -- UPnP
                 return
             end
             local usn = USN(discovery_header.usn)
-            if not (next(self.discovery_subscription) and (function()
+            if not (next(self.discovery_notification) and (function()
                 for scheme, value in pairs(usn) do
-                    if self.discovery_subscription[table.concat({scheme, value}, ":")] then
+                    if self.discovery_notification[table.concat({scheme, value}, ":")] then
                         return true
                     end
                 end
@@ -160,10 +160,10 @@ return classify.single({    -- UPnP
             end
             discovery_header.usn = usn
             for scheme, value in pairs(usn) do
-                local set = self.discovery_subscription[table.concat({scheme, value}, ":")]
+                local set = self.discovery_notification[table.concat({scheme, value}, ":")]
                 if set then
-                    for discovery in pairs(set) do
-                        discovery(peer_address, peer_port, discovery_header, description)
+                    for notify in pairs(set) do
+                        notify(peer_address, peer_port, discovery_header, description)
                     end
                 end
             end
@@ -173,8 +173,8 @@ return classify.single({    -- UPnP
         -- with a tcp listen socket and those accepted from it
         -- and UPnP:eventing* methods
         self.eventing_address = {}
-        self.eventing_callback = {}
         self.eventing_subscription = {}
+        self.eventing_notification = {}
         -- SmartThings implementation of cosock.socket.bind convenience function
         -- will fail on skt:setoption("reuseaddr", true)
         -- As commented, even they are not sure why they are doing this step
@@ -203,7 +203,7 @@ return classify.single({    -- UPnP
                     local _, path = table.unpack(action)
                     local part = split(path:sub(2), "/", 3)
                     local prefix = table.concat({part[1], part[2]}, "/")
-                    local prefix_set = self.eventing_subscription[prefix]
+                    local prefix_set = self.eventing_notification[prefix]
                     if not prefix_set then
                         log.warn(self.name, "event", "drop", path)
                     else
@@ -220,8 +220,8 @@ return classify.single({    -- UPnP
                                 if not statevar_set then
                                     log.warn(self.name, "event", "drop", path, name)
                                 else
-                                    for eventing in pairs(statevar_set) do
-                                        eventing(name, node)
+                                    for notify in pairs(statevar_set) do
+                                        notify(name, node)
                                     end
                                 end
                             else
@@ -286,8 +286,8 @@ return classify.single({    -- UPnP
             while true do
                 local timeout_min = nil -- forever
                 local before = epoch_time()
-                for _, eventing_callback in pairs(self.eventing_callback) do
-                    local timeout = eventing_callback.expiration - before
+                for _, subscription in pairs(self.eventing_subscription) do
+                    local timeout = subscription.expiration - before
                     if not timeout_min then
                         timeout_min = timeout
                     else
@@ -306,9 +306,9 @@ return classify.single({    -- UPnP
                     end
                 else    -- timeout
                     local after = epoch_time()
-                    for path, eventing_callback in pairs(self.eventing_callback) do
-                        if (after >= eventing_callback.expiration) then
-                            self:eventing_renew(path, eventing_callback)
+                    for path, subscription in pairs(self.eventing_subscription) do
+                        if (after >= subscription.expiration) then
+                            self:eventing_subscription_renew(path, subscription)
                         end
                     end
                 end
@@ -321,15 +321,15 @@ return classify.single({    -- UPnP
         self.subscribe_sender:send(0)
     end,
 
-    discovery_subscribe = function(self, usn, discovery)
+    discovery_notify = function(self, usn, notify)
         for scheme, value in pairs(usn) do
             local uri = table.concat({scheme, value}, ":")
-            local set = self.discovery_subscription[uri]
+            local set = self.discovery_notification[uri]
             if not set then
                 set = WeakKeys()
-                self.discovery_subscription[uri] = set
+                self.discovery_notification[uri] = set
             end
-            set[discovery] = true
+            set[notify] = true
         end
     end,
 
@@ -362,11 +362,11 @@ return classify.single({    -- UPnP
         local eventing_address = self.eventing_address[peer]
         if eventing_address and address ~= eventing_address then
             -- address that peer should use has changed
-            -- invalidate each self.eventing_callback with peer
-            for _, eventing_callback in pairs(self.eventing_callback) do
-                if peer == eventing_callback.peer then
-                    eventing_callback.sid = nil
-                    eventing_callback.expiration = 0    -- renew immediately
+            -- invalidate each self.eventing_subscription with peer
+            for _, subscription in pairs(self.eventing_subscription) do
+                if peer == subscription.peer then
+                    subscription.sid = nil
+                    subscription.expiration = 0    -- renew immediately
                 end
             end
         end
@@ -374,7 +374,17 @@ return classify.single({    -- UPnP
         return address
     end,
 
-    eventing_new = function(self, url, path)
+    eventing_address_change = function(self)
+        local peer_set = {}
+        for _, subscription in pairs(self.eventing_subscription) do
+            peer_set[subscription.peer] = true
+        end
+        for peer in pairs(peer_set) do
+            self:eventing_address_for(peer)
+        end
+    end,
+
+    eventing_subscription_new = function(self, url, path)
         local peer = table.unpack(http:url_parse(url))
         local address = self:eventing_address_for(peer)
         local callback = "http://" .. address .. ":" .. self.port .. "/" .. path
@@ -387,33 +397,33 @@ return classify.single({    -- UPnP
             table.insert(request_header, table.concat({"STATEVAR", statevar}, ": "))
         end
         local now = epoch_time()
-        local eventing_callback = {
+        local subscription = {
             url = url,
-            expiration = now + 300, -- try again later if this does not work
+            expiration = now + 300, -- (re)new later unless success (below)
             peer = peer,
-            address = address,
         }
-        self.eventing_callback[path] = eventing_callback
+        self.eventing_subscription[path] = subscription
         local response, response_error = http:transact(url, "SUBSCRIBE", self.read_timeout, request_header)
         if response_error then
-            log.error(self.name, "event", "new", url, path, response_error)
+            log.error(self.name, "event", "new", url, path, callback, response_error)
         else
             local status, header = table.unpack(response)
             local _, code, reason = table.unpack(status)
             if http.OK ~= code then
-                log.error(self.name, "event", "new", url, path, reason or code)
+                log.error(self.name, "event", "new", url, path, callback, reason or code)
                 return
             end
             local sid, timeout = header.sid, header.timeout
-            log.debug(self.name, "event", "new", url, path, sid, timeout)
-            eventing_callback.sid = sid
+            log.debug(self.name, "event", "new", url, path, callback, sid, timeout)
             local duration = math.max(60, tonumber(timeout:match("Second%-(%d+)")))
-            eventing_callback.expiration = now + duration - 8   -- renew before timeout
+            -- success. renew before expiration
+            subscription.sid = sid
+            subscription.expiration = now + duration - 8
         end
     end,
 
-    eventing_renew = function(self, path, eventing_callback)
-        local url, sid = eventing_callback.url, eventing_callback.sid
+    eventing_subscription_renew = function(self, path, subscription)
+        local url, sid = subscription.url, subscription.sid
         if sid then
             local request_header = {
                 "SID: " .. sid,
@@ -430,19 +440,19 @@ return classify.single({    -- UPnP
                     local timeout = header.timeout
                     log.debug(self.name, "event", "renew", url, path, sid, timeout)
                     local duration = math.max(60, tonumber(timeout:match("Second%-(%d+)")))
-                    eventing_callback.expiration = epoch_time() + duration - 8
+                    subscription.expiration = epoch_time() + duration - 8
                     return
                 end
             end
         end
-        self:eventing_new(url, path)
+        self:eventing_subscription_new(url, path)
     end,
 
-    eventing_register = function(self, prefix, statevar_list, eventing)
-        local prefix_set = self.eventing_subscription[prefix]
+    eventing_notify = function(self, prefix, statevar_list, notify)
+        local prefix_set = self.eventing_notification[prefix]
         if not prefix_set then
             prefix_set = {}
-            self.eventing_subscription[prefix] = prefix_set
+            self.eventing_notification[prefix] = prefix_set
         end
         for _, name in ipairs(statevar_list) do
             local statevar_set = prefix_set[name]
@@ -450,20 +460,20 @@ return classify.single({    -- UPnP
                 statevar_set = WeakKeys()
                 prefix_set[name] = statevar_set
             end
-            statevar_set[eventing] = true
+            statevar_set[notify] = true
         end
     end,
 
-    eventing_subscribe = function(self, location, url, device, service, statevar_list, eventing)
+    eventing_subscribe = function(self, location, url, device, service, statevar_list, notify)
         if "/" == url:sub(1, 1) then
             -- qualify relative url with location prefix
             url = location:match("(http://[%a%d-%.:]+)/.*") .. url
         end
         local prefix = table.concat({device, service}, "/")
         statevar_list = statevar_list or {""}
-        self:eventing_register(prefix, statevar_list, eventing)
+        self:eventing_notify(prefix, statevar_list, notify)
         local path = table.concat({prefix, table.concat(statevar_list, ",")}, "/")
-        self:eventing_new(url, path)
+        self:eventing_subscription_new(url, path)
         self.subscribe_sender:send(1)
     end,
 })

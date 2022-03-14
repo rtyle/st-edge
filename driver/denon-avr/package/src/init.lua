@@ -167,7 +167,7 @@ Child = classify.single({
 
 Driver("denon-avr", {
     lan_info_changed_handler = function(_)
-        -- TODO: UPnP eventing update for new address
+        upnp:eventing_address_change()
     end,
 
     discovery = function(driver, _, should_continue)

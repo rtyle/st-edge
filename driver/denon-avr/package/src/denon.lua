@@ -113,8 +113,8 @@ denon = {
                 end
             end
 
-            upnp:discovery_subscribe(st, self.discovery)
-            -- unsubscribe is implicit on garbage collection of self
+            upnp:discovery_notify(st, self.discovery)
+            -- undo is implicit on garbage collection of self
         end,
 
         search = function(self)
