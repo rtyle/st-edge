@@ -111,6 +111,7 @@ denon = {
         stop = function(self)
             assert(self.thread_sender, table.concat({LOG, self.uuid .. "stopped"}, "\t"))
             self.thread_sender:close()  -- stop
+            self.thread_sender = nil    -- stopped
             if self.subscription then
                 self.subscription:unsubscribe()
                 self.subscription = nil

@@ -243,6 +243,8 @@ return classify.single({    -- UPnP
         self.eventing_subscription  = WeakKeys()
         self.eventing_notification  = WeakKeys()
         self.discovery_notification = WeakKeys()
+
+        self:start()
     end,
 
     start = function(self)
@@ -446,9 +448,14 @@ return classify.single({    -- UPnP
 
     stop = function(self)
         assert(self.thread_sender, self.name .. "\tstopped")
-        self.thread_sender:close()
+        self.thread_sender:close()  -- stop
         self.thread_sender = nil    -- stopped
     end,
+
+    restart = function(self)
+        self:stop()
+        self:start()
+    end
 
     discovery_notify = function(self, usn, notify)
         for scheme, value in pairs(usn) do
