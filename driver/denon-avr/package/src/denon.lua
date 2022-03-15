@@ -60,7 +60,7 @@ denon = {
                         log.error(LOG, self.uuid, "find", "not", uuid)
                         return
                     end
-                    self:send(0)    -- sleep
+                    self:thread_send(0)    -- sleep
                     log.debug(LOG, self.uuid, "find", address, port, header.location, device.friendlyName)
                     self.location = header.location
                     self.device = device
@@ -74,7 +74,7 @@ denon = {
                                 self.subscription = self.upnp:eventing_subscribe(location, url,
                                     header.usn.uuid, urn, nil, self.eventing,
                                     function()
-                                        self:send(1)    -- poll
+                                        self:thread_send(1)    -- poll
                                     end)
                             end
                             break
@@ -108,7 +108,7 @@ denon = {
             end, table.concat({LOG, self.uuid}, "\t"))
         end,
 
-        send = function(self, value)
+        thread_send = function(self, value)
             if self.thread_sender then
                 self.thread_sender:send(value)
             end
