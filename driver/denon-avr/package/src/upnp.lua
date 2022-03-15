@@ -95,7 +95,7 @@ return classify.single({    -- UPnP
     Close = classify.error({}), -- construct to close (what was ready is no longer willing or able)
 
     Subscription = classify.single({
-        _init = function(_, self, upnp, location, _url, device, service, statevar_list, notify)
+        _init = function(_, self, upnp, location, _url, device, service, statevar_list, notify, relocate)
             self.upnp = upnp
 
             local prefix = table.concat({device, service}, "/")
@@ -105,6 +105,7 @@ return classify.single({    -- UPnP
 
             upnp:eventing_notify(prefix, statevar_list, notify)
 
+            self.relocate = relocate
             self:locate(location, _url)
         end,
 
@@ -140,24 +141,30 @@ return classify.single({    -- UPnP
             self.upnp.eventing_subscription[self] = true
             self.expiration = now + 300
 
-            local response, response_error = http:transact(url, "SUBSCRIBE", self.upnp.read_timeout, request_header)
+            local response, response_error
+                = http:transact(url, "SUBSCRIBE", self.upnp.read_timeout, request_header)
             if response_error then
-                log.error(self.upnp.name, "subscription", "subscribe", url, path, callback, response_error)
-            else
-                local status, header = table.unpack(response)
-                local _, code, reason = table.unpack(status)
-                if http.OK ~= code then
-                    log.error(self.upnp.name, "subscription", "subscribe", url, path, callback, reason or code)
-                    return
+                if self.relocate then
+                    self.relocate()
+                else
+                    log.error(self.upnp.name, "subscription", "subscribe", url, path, callback, response_error)
                 end
-                local timeout
-                self.sid, timeout = header.sid, header.timeout
-                log.debug(self.upnp.name, "subscription", "subscribe", url, path, callback, self.sid, timeout)
-
-                -- success. renew before expiration
-                local duration = math.max(60, tonumber(timeout:match("Second%-(%d+)")))
-                self.expiration = now + duration - 8
+                return
             end
+            local status, header = table.unpack(response)
+            local _, code, reason = table.unpack(status)
+            if http.OK ~= code then
+                log.error(self.upnp.name, "subscription", "subscribe", url, path, callback, reason or code)
+                return
+            end
+
+            local timeout
+            self.sid, timeout = header.sid, header.timeout
+            log.debug(self.upnp.name, "subscription", "subscribe", url, path, callback, self.sid, timeout)
+
+            -- success. renew before expiration
+            local duration = math.max(60, tonumber(timeout:match("Second%-(%d+)")))
+            self.expiration = now + duration - 8
         end,
 
         unsubscribe = function(self)
@@ -169,19 +176,22 @@ return classify.single({    -- UPnP
                 local request_header = {
                     "SID: " .. sid,
                 }
-                local response, response_error = http:transact(url, "UNSUBSCRIBE", self.upnp.read_timeout, request_header)
+                local response, response_error
+                    = http:transact(url, "UNSUBSCRIBE", self.upnp.read_timeout, request_header)
                 if response_error then
                     log.error(self.upnp.name, "subscription", "unsubscribe", url, path, sid, response_error)
-                else
-                    local status, header = table.unpack(response)
-                    local _, code, reason = table.unpack(status)
-                    if http.OK ~= code then
-                        log.error(self.upnp.name, "subscription", "unsubscribe", url, path, sid, reason or code)
-                    else
-                        log.debug(self.upnp.name, "subscription", "unsubscribe", url, path, sid)
-                        self.sid = nil
-                    end
+                    return
                 end
+                local status = table.unpack(response)
+                local _, code, reason = table.unpack(status)
+                if http.OK ~= code then
+                    log.error(self.upnp.name, "subscription", "unsubscribe", url, path, sid, reason or code)
+                    return
+                end
+
+                -- success
+                log.debug(self.upnp.name, "subscription", "unsubscribe", url, path, sid)
+                self.sid = nil
             end
         end,
 
@@ -236,10 +246,7 @@ return classify.single({    -- UPnP
     end,
 
     start = function(self)
-        if self.thread_sender then
-            log.error(self.name, "started")
-            return
-        end
+        assert(not self.thread_sender, self.name .. "\tstarted")
         log.debug(self.name, "start")
 
         -- set of willing receivers
@@ -385,7 +392,7 @@ return classify.single({    -- UPnP
         -- thread
 
         local thread_receiver
-        self.thread_sender, thread_receiver = cosock.channel.new()
+        self.thread_sender, thread_receiver = cosock.channel.new()  -- started
         willing[thread_receiver] = function()
             local received = thread_receiver:receive()
             if not received then
@@ -432,15 +439,15 @@ return classify.single({    -- UPnP
                     end
                 end
             end
+            thread_receiver:close()
             log.debug(self.name, "stop")
         end, self.name)
     end,
 
     stop = function(self)
-        if self.thread_sender then
-            self.thread_sender:close()
-            self.thread_sender = nil
-        end
+        assert(self.thread_sender, self.name .. "\tstopped")
+        self.thread_sender:close()
+        self.thread_sender = nil    -- stopped
     end,
 
     discovery_notify = function(self, usn, notify)
@@ -456,9 +463,7 @@ return classify.single({    -- UPnP
     end,
 
     discovery_search = function(self, address, port, st, mx)
-        if not self.thread_sender then
-            log.error(self.name, "stopped")
-        end
+        assert(self.thread_sender, self.name .. "\tstopped")
         log.debug(self.name, "discovery", "search", address, port, st, mx)
         local request = {
             table.concat({"M-SEARCH", "*", self.PROTOCOL}, " "),
@@ -498,7 +503,7 @@ return classify.single({    -- UPnP
         end
     end,
 
-    eventing_subscribe = function(self, location, url, device, service, statevar_list, notify)
-        return self.Subscription(self, location, url, device, service, statevar_list, notify)
+    eventing_subscribe = function(self, location, url, device, service, statevar_list, notify, relocate)
+        return self.Subscription(self, location, url, device, service, statevar_list, notify, relocate)
     end,
 })

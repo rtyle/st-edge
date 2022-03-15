@@ -6,12 +6,14 @@ local xml       = require "xml"
 local classify  = require "classify"
 local UPnP      = require "upnp"
 
--- at the time of this writing, the latest Denon AVR-X4100W firmware,
+-- as of this writing, the latest Denon AVR-X4100W firmware,
 -- UPnP service eventing are all worthless for our purposes
 -- except RenderingControl, which will sendEvents only on its LastChange state variable.
 -- this may have Mute and/or Volume state but only for the Master channel.
 -- we are kept in sync with the device's Mute state.
 -- we are not kept in sync with the device's Volume state and its value may be wrong.
+-- reacting to the failure to renew a subscription allows us to rediscover the device.
+-- the device may simply be offline or it may have relocated (IP address changed).
 local RENDERING_CONTROL
     = table.concat({UPnP.USN.UPNP_ORG, UPnP.USN.SERVICE_ID, "RenderingControl"}, ":")
 local MEDIA_RENDERER
@@ -41,52 +43,74 @@ denon = {
                 end)
             end
 
-            -- search until we find location and device for uuid
-            local find_receiver
-            self.find_sender, find_receiver = cosock.channel.new()
-            local st = UPnP.USN{[UPnP.USN.UUID] = uuid}
+            self:start()
+        end,
+
+        start = function(self)
+            assert(not self.thread_sender, table.concat({LOG, self.uuid .. "started"}, "\t"))
+            log.debug(LOG, self.uuid, "start")
+
+            local thread_receiver
+            self.thread_sender, thread_receiver = cosock.channel.new()
             cosock.spawn(function()
+
                 local function find(address, port, header, device)
-                    local find_uuid = header.usn.uuid
-                    if find_uuid ~= self.uuid then
-                        log.error(LOG, self.uuid, "find", "not", find_uuid)
+                    local uuid = header.usn.uuid
+                    if uuid ~= self.uuid then
+                        log.error(LOG, self.uuid, "find", "not", uuid)
                         return
                     end
-                    self.find_sender:send(1)
+                    self.thread_sender:send(0)  -- sleep
                     log.debug(LOG, self.uuid, "find", address, port, header.location, device.friendlyName)
                     self.location = header.location
                     self.device = device
                     for _, service in ipairs(device.serviceList.service) do
                         local urn = UPnP.USN(service.serviceId).urn
                         if urn == RENDERING_CONTROL then
-                            self.subscription = upnp:eventing_subscribe(
-                                header.location, service.eventSubURL, header.usn.uuid, urn, nil, self.eventing)
-                            -- unsubscribe is implicit on garbage collection of self
+                            local location, url = header.location, service.eventSubURL
+                            if self.subscription then
+                                self.subscription:locate(location, url)
+                            else
+                                self.subscription = self.upnp:eventing_subscribe(location, url,
+                                    header.usn.uuid, urn, nil, self.eventing,
+                                    function()
+                                        self.thread_sender:send(1)    -- poll
+                                    end)
+                            end
                             break
                         end
                     end
                 end
 
-                local discover = denon.Discover(upnp, find, st)
+                local discover = denon.Discover(self.upnp, find, UPnP.USN{[UPnP.USN.UUID] = self.uuid})
+                local poll = 60
+                local timeout = poll
                 while true do
-                    pcall(discover.search, discover)
-                    local ready, select_error = cosock.socket.select({find_receiver}, {}, 60)
-                    if select_error then
-                        -- stop on unexpected error
-                        log.error(LOG, self.uuid, "find", select_error)
-                        break
+                    if timeout then
+                        pcall(discover.search, discover)    -- poll
                     end
+                    local ready = cosock.socket.select({thread_receiver}, {}, timeout)
                     if ready then
-                        find_receiver:receive()
-                        break
+                        local received = thread_receiver:receive()
+                        if not received then
+                            break   -- stop
+                        else
+                            if 0 == received then
+                                timeout = nil   -- sleep
+                            else
+                                timeout = poll  -- poll
+                            end
+                        end
                     end
                 end
-                log.debug(LOG, self.uuid, "find", "exiting")
-            end, table.concat({LOG, self.uuid, "find"}, "\t"))
+                thread_receiver:close()
+                log.debug(LOG, self.uuid, "stop")
+            end, table.concat({LOG, self.uuid}, "\t"))
         end,
 
         stop = function(self)
-            self.find_sender:send(0)
+            assert(self.thread_sender, table.concat({LOG, self.uuid .. "stopped"}, "\t"))
+            self.thread_sender:close()  -- stop
             if self.subscription then
                 self.subscription:unsubscribe()
                 self.subscription = nil
