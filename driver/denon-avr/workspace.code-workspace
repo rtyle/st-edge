@@ -12,7 +12,8 @@
 				"request": "launch",
 				"name": "Debug",
 			}
-		]
+		],
+		"cwd": "${workspaceFolder}"
 	},
 	"settings": {
 		"lua.debug.settings.path": [

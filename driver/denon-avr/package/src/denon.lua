@@ -59,7 +59,7 @@ denon = {
                     for _, service in ipairs(device.serviceList.service) do
                         local urn = UPnP.USN(service.serviceId).urn
                         if urn == RENDERING_CONTROL then
-                            upnp:eventing_subscribe(
+                            self.subscription = upnp:eventing_subscribe(
                                 header.location, service.eventSubURL, header.usn.uuid, urn, nil, self.eventing)
                             -- unsubscribe is implicit on garbage collection of self
                             break
@@ -87,6 +87,10 @@ denon = {
 
         stop = function(self)
             self.find_sender:send(0)
+            if self.subscription then
+                self.subscription:unsubscribe()
+                self.subscription = nil
+            end
         end,
 
         eventing_mute = function(self, channel, value)

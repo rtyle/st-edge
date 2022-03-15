@@ -122,6 +122,7 @@ local Parent = classify.single({
     end,
 
     removed = function(self)
+        self.avr:stop()
         self.avr = nil
         return Adapter.removed(self)
     end,

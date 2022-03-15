@@ -94,12 +94,143 @@ return classify.single({    -- UPnP
     USN   = USN,
     Close = classify.error({}), -- construct to close (what was ready is no longer willing or able)
 
+    Subscription = classify.single({
+        _init = function(_, self, upnp, location, _url, device, service, statevar_list, notify)
+            self.upnp = upnp
+
+            local prefix = table.concat({device, service}, "/")
+            statevar_list = statevar_list or {""}
+            self.statevar = table.concat(statevar_list, ",")
+            self.path = table.concat({prefix, self.statevar}, "/")
+
+            upnp:eventing_notify(prefix, statevar_list, notify)
+
+            self:locate(location, _url)
+        end,
+
+        locate = function(self, location, _url)
+            local url = _url
+            if "/" == _url:sub(1, 1) then
+                -- qualify relative _url with location prefix
+                url = location:match("(http://[%a%d-%.:]+)/.*") .. _url
+            end
+            if self.url ~= url then
+                self.url = url
+                self.peer = table.unpack(http:url_parse(url))
+                self:subscribe()
+                self.upnp.thread_sender:send(0)
+            end
+        end,
+
+        subscribe = function(self)
+            local url, path = self.url, self.path
+
+            local callback = "http://" .. address_for(self.peer) .. ":" .. self.upnp.eventing_port .. "/" .. path
+            local request_header = {
+                "CALLBACK: <" .. callback .. ">",
+                "NT: upnp:event",
+            }
+            if 0 < #self.statevar then
+                table.insert(request_header, table.concat({"STATEVAR", self.statevar}, ": "))
+            end
+
+            local now = epoch_time()
+
+            -- (re)new later unless/until success (below)
+            self.upnp.eventing_subscription[self] = true
+            self.expiration = now + 300
+
+            local response, response_error = http:transact(url, "SUBSCRIBE", self.upnp.read_timeout, request_header)
+            if response_error then
+                log.error(self.upnp.name, "subscription", "subscribe", url, path, callback, response_error)
+            else
+                local status, header = table.unpack(response)
+                local _, code, reason = table.unpack(status)
+                if http.OK ~= code then
+                    log.error(self.upnp.name, "subscription", "subscribe", url, path, callback, reason or code)
+                    return
+                end
+                local timeout
+                self.sid, timeout = header.sid, header.timeout
+                log.debug(self.upnp.name, "subscription", "subscribe", url, path, callback, self.sid, timeout)
+
+                -- success. renew before expiration
+                local duration = math.max(60, tonumber(timeout:match("Second%-(%d+)")))
+                self.expiration = now + duration - 8
+            end
+        end,
+
+        unsubscribe = function(self)
+            self.upnp.eventing_subscription[self] = nil
+
+            local url, path, sid = self.url, self.path, self.sid
+
+            if sid then
+                local request_header = {
+                    "SID: " .. sid,
+                }
+                local response, response_error = http:transact(url, "UNSUBSCRIBE", self.upnp.read_timeout, request_header)
+                if response_error then
+                    log.error(self.upnp.name, "subscription", "unsubscribe", url, path, sid, response_error)
+                else
+                    local status, header = table.unpack(response)
+                    local _, code, reason = table.unpack(status)
+                    if http.OK ~= code then
+                        log.error(self.upnp.name, "subscription", "unsubscribe", url, path, sid, reason or code)
+                    else
+                        log.debug(self.upnp.name, "subscription", "unsubscribe", url, path, sid)
+                        self.sid = nil
+                    end
+                end
+            end
+        end,
+
+        __gc = function(self)
+            if self.sid then
+                -- self:unsubscribe(true)
+                -- we must not do ^this because it would result in an error:
+                -- attempt to yield across a C-call boundary
+                log.error(self.upnp.name, "subscription", "__gc", self.sid, "subscribed")
+                self.upnp.eventing_subscription[self] = nil
+            end
+        end,
+
+        renew = function(self)
+            local url, path, sid = self.url, self.path, self.sid
+
+            if sid then
+                local request_header = {
+                    "SID: " .. sid,
+                }
+                local response, response_error = http:transact(url, "SUBSCRIBE", self.upnp.read_timeout, request_header)
+                if response_error then
+                    log.error(self.upnp.name, "subscription", "renew", url, path, sid, response_error)
+                else
+                    local status, header = table.unpack(response)
+                    local _, code, reason = table.unpack(status)
+                    if http.OK ~= code then
+                        log.error(self.upnp.name, "subscription", "renew", url, path, sid, reason or code)
+                    else
+                        local timeout = header.timeout
+                        log.debug(self.upnp.name, "subscription", "renew", url, path, sid, timeout)
+
+                        -- success. renew before expiration
+                        local duration = math.max(60, tonumber(timeout:match("Second%-(%d+)")))
+                        self.expiration = epoch_time() + duration - 8
+                        return
+                    end
+                end
+            end
+            self:subscribe()
+        end,
+    }),
+
     _init = function(_, self, read_timeout, _name)
         self.read_timeout = read_timeout or 1
         self.name = _name or "UPnP"
 
         log.debug(self.name)
-        self.eventing_subscription  = {}
+        self.eventing_subscription  = WeakKeys()
         self.eventing_notification  = WeakKeys()
         self.discovery_notification = WeakKeys()
     end,
@@ -246,7 +377,7 @@ return classify.single({    -- UPnP
         end
 
         -- (re)new each subscription immediately
-        for _, subscription in pairs(self.eventing_subscription) do
+        for subscription in pairs(self.eventing_subscription) do
             subscription.sid = nil
             subscription.expiration = 0
         end
@@ -270,7 +401,7 @@ return classify.single({    -- UPnP
             while next(willing) do
                 local timeout_min = nil -- forever
                 local before = epoch_time()
-                for _, subscription in pairs(self.eventing_subscription) do
+                for subscription in pairs(self.eventing_subscription) do
                     local timeout = subscription.expiration - before
                     if not timeout_min then
                         timeout_min = timeout
@@ -295,9 +426,9 @@ return classify.single({    -- UPnP
                     end
                 end
                 local after = epoch_time()
-                for path, subscription in pairs(self.eventing_subscription) do
+                for subscription in pairs(self.eventing_subscription) do
                     if (after >= subscription.expiration) then
-                        self:eventing_subscription_renew(path, subscription)
+                        subscription:renew()
                     end
                 end
             end
@@ -351,68 +482,6 @@ return classify.single({    -- UPnP
         self:discovery_search(address, port, st)
     end,
 
-    eventing_subscription_new = function(self, url, path)
-        local peer = table.unpack(http:url_parse(url))
-        local callback = "http://" .. address_for(peer) .. ":" .. self.eventing_port .. "/" .. path
-        local request_header = {
-            "CALLBACK: <" .. callback .. ">",
-            "NT: upnp:event",
-        }
-        local statevar = split(path, "/", 3)[3]
-        if 0 < #statevar then
-            table.insert(request_header, table.concat({"STATEVAR", statevar}, ": "))
-        end
-        local now = epoch_time()
-        local subscription = {
-            url = url,
-            expiration = now + 300, -- (re)new later unless success (below)
-        }
-        self.eventing_subscription[path] = subscription
-        local response, response_error = http:transact(url, "SUBSCRIBE", self.read_timeout, request_header)
-        if response_error then
-            log.error(self.name, "eventing", "new", url, path, callback, response_error)
-        else
-            local status, header = table.unpack(response)
-            local _, code, reason = table.unpack(status)
-            if http.OK ~= code then
-                log.error(self.name, "eventing", "new", url, path, callback, reason or code)
-                return
-            end
-            local sid, timeout = header.sid, header.timeout
-            log.debug(self.name, "eventing", "new", url, path, callback, sid, timeout)
-            local duration = math.max(60, tonumber(timeout:match("Second%-(%d+)")))
-            -- success. renew before expiration
-            subscription.sid = sid
-            subscription.expiration = now + duration - 8
-        end
-    end,
-
-    eventing_subscription_renew = function(self, path, subscription)
-        local url, sid = subscription.url, subscription.sid
-        if sid then
-            local request_header = {
-                "SID: " .. sid,
-            }
-            local response, response_error = http:transact(url, "SUBSCRIBE", self.read_timeout, request_header)
-            if response_error then
-                log.error(self.name, "eventing", "renew", url, path, sid, response_error)
-            else
-                local status, header = table.unpack(response)
-                local _, code, reason = table.unpack(status)
-                if http.OK ~= code then
-                    log.error(self.name, "eventing", "renew", url, path, sid, reason or code)
-                else
-                    local timeout = header.timeout
-                    log.debug(self.name, "eventing", "renew", url, path, sid, timeout)
-                    local duration = math.max(60, tonumber(timeout:match("Second%-(%d+)")))
-                    subscription.expiration = epoch_time() + duration - 8
-                    return
-                end
-            end
-        end
-        self:eventing_subscription_new(url, path)
-    end,
-
     eventing_notify = function(self, prefix, statevar_list, notify)
         local prefix_set = self.eventing_notification[prefix]
         if not prefix_set then
@@ -430,22 +499,6 @@ return classify.single({    -- UPnP
     end,
 
     eventing_subscribe = function(self, location, url, device, service, statevar_list, notify)
-        if not self.thread_sender then
-            log.error(self.name, "stopped")
-        end
-        if "/" == url:sub(1, 1) then
-            -- qualify relative url with location prefix
-            url = location:match("(http://[%a%d-%.:]+)/.*") .. url
-        end
-        local prefix = table.concat({device, service}, "/")
-        statevar_list = statevar_list or {""}
-        self:eventing_notify(prefix, statevar_list, notify)
-        local path = table.concat({prefix, table.concat(statevar_list, ",")}, "/")
-        if notify then
-            self:eventing_subscription_new(url, path)
-        else
-            self.eventing_subscription[path] = nil
-        end
-        self.thread_sender:send(0)
+        return self.Subscription(self, location, url, device, service, statevar_list, notify)
     end,
 })

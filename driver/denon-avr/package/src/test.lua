@@ -38,10 +38,14 @@ cosock.spawn(function()
         end
     end
 
-    cosock.socket.sleep(600)
+    for _, avr in pairs(avr_set) do
+        avr:stop()
+    end
+    avr_set = {}
+    collectgarbage()
+
     upnp:stop()
     upnp:start()
-    cosock.socket.sleep(600)
 
 end, "test\tfind" .. tostring(denon.ST))
 
