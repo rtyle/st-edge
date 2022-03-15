@@ -7,6 +7,7 @@ local UPnP      = require "upnp"
 local denon     = require "denon"
 
 local upnp = UPnP()
+upnp:start()
 
 local Break = classify.error({})
 
@@ -37,9 +38,11 @@ cosock.spawn(function()
         end
     end
 
-    cosock.socket.sleep(1200)
-
+    cosock.socket.sleep(600)
     upnp:stop()
+    upnp:start()
+    cosock.socket.sleep(600)
+
 end, "test\tfind" .. tostring(denon.ST))
 
 cosock.run()

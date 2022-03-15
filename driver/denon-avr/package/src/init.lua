@@ -113,6 +113,7 @@ local Adapter = classify.single({
 
 local Child
 local upnp = UPnP()
+upnp:start()
 
 local Parent = classify.single({
     _init = function(class, self, driver, device)
@@ -167,7 +168,10 @@ Child = classify.single({
 
 Driver("denon-avr", {
     lan_info_changed_handler = function(_)
-        upnp:eventing_address_change()
+        -- our DHCP-leased IP address changed
+        -- we must restart upnp services
+        upnp:stop()
+        upnp:start()
     end,
 
     discovery = function(driver, _, should_continue)

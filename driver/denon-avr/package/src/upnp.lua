@@ -92,28 +92,38 @@ return classify.single({    -- UPnP
 
     -- classes
     USN   = USN,
-    Break = classify.error({}), -- construct to break out of UPnP thread loop
     Close = classify.error({}), -- construct to close (what was ready is no longer willing or able)
 
     _init = function(_, self, read_timeout, _name)
         self.read_timeout = read_timeout or 1
         self.name = _name or "UPnP"
+
         log.debug(self.name)
+        self.discovery_notification = WeakKeys()
+        self.eventing_subscription = {}
+        self.eventing_notification = {}
+    end,
+
+    start = function(self)
+        if self.thread_sender then
+            log.error(self.name, "started")
+            return
+        end
+        log.debug(self.name, "start")
 
         -- set of willing receivers
         local willing = {}
 
-        -- support UPnP Discovery
-        -- with a udp socket
-        -- and UPnP:discovery* methods
-        self.discovery_notification = WeakKeys()
-        self.discovery_socket = cosock.socket.udp()
-        willing[self.discovery_socket] = function()
+        -- discovery
+
+        local discovery_socket = cosock.socket.udp()
+        self.discovery_socket = discovery_socket
+        willing[discovery_socket] = function()
             -- receive and process one HTTPU datagram to fulfill matching discovery_notification
             local peer_address, peer_port
             local reader = Reader(coroutine.wrap(function()
                 local datagram
-                datagram, peer_address, peer_port = self.discovery_socket:receivefrom(2048)
+                datagram, peer_address, peer_port = discovery_socket:receivefrom(2048)
                 coroutine.yield(datagram)
                 return nil, "closed"
             end))
@@ -169,29 +179,27 @@ return classify.single({    -- UPnP
             end
         end
 
-        -- support UPnP Eventing
-        -- with a tcp listen socket and those accepted from it
-        -- and UPnP:eventing* methods
-        self.eventing_address = {}
-        self.eventing_subscription = {}
-        self.eventing_notification = {}
-        -- SmartThings implementation of cosock.socket.bind convenience function
-        -- will fail on skt:setoption("reuseaddr", true)
-        -- As commented, even they are not sure why they are doing this step
-        -- It is not needed so we perform only the tcp socket create, bind and listen steps.
-        local listen_socket = cosock.socket.tcp()
-        listen_socket:bind("*", 0)
-        listen_socket:listen(8)
-        local _, port = listen_socket:getsockname()
-        self.port = port
-        log.debug(self.name, "event", "socat - TCP:" .. address_for("1.1.1.1") .. ":" .. self.port .. ",crnl")
-        willing[listen_socket] = function()
-            local accept_socket, accept_error = listen_socket:accept()
+        -- eventing
+
+        -- we ask that our eventing_socket be bound to all network interfaces.
+        -- on a SmartThings hub, when the IP address of its network interface changes,
+        -- new connections to this socket cannot be made (why?).
+        -- this must be detected and our services restarted.
+        local eventing_socket = cosock.socket.tcp()
+        eventing_socket:bind("*", 0)
+        eventing_socket:listen(8)
+
+        local _, eventing_port = eventing_socket:getsockname()
+        self.eventing_port = eventing_port
+        log.debug(self.name, "eventing",
+            "socat - TCP:" .. address_for("1.1.1.1") .. ":" .. self.eventing_port .. ",crnl")
+        willing[eventing_socket] = function()
+            local accept_socket, accept_error = eventing_socket:accept()
             if accept_error then
-                self.Close(port)
+                self.Close(self.eventing_port)
             end
             local peer_address, peer_port = accept_socket:getpeername()
-            log.debug(self.name, "receive", "accept", peer_address, peer_port)
+            log.debug(self.name, "eventing", "accept", peer_address, peer_port)
             local reader = http:reader(accept_socket, self.read_timeout)
             willing[accept_socket] = function()
                 local response_ok, response = pcall(http.message, http, reader)
@@ -205,7 +213,7 @@ return classify.single({    -- UPnP
                     local prefix = table.concat({part[1], part[2]}, "/")
                     local prefix_set = self.eventing_notification[prefix]
                     if not prefix_set then
-                        log.warn(self.name, "event", "drop", path)
+                        log.warn(self.name, "eventing", "drop", path)
                     else
                         local function visit(node, name)
                             local node_type = type(node)
@@ -218,72 +226,46 @@ return classify.single({    -- UPnP
                             elseif "string" == node_type then
                                 local statevar_set = prefix_set[name] or prefix_set[""]
                                 if not statevar_set then
-                                    log.warn(self.name, "event", "drop", path, name)
+                                    log.warn(self.name, "eventing", "drop", path, name)
                                 else
                                     for notify in pairs(statevar_set) do
                                         notify(name, node)
                                     end
                                 end
                             else
-                                log.error(self.name, "event", "drop", path, name, node_type)
+                                log.error(self.name, "eventing", "drop", path, name, node_type)
                             end
                         end
                         visit(xml.decode(body).root)
                     end
                 end)
                 if (eventing_error) then
-                    log.error(self.name, "event", eventing_error)
+                    log.error(self.name, "eventing", eventing_error)
                 end
             end
         end
 
-        -- receive thread
-        local receive_receiver
-        self.receive_sender, receive_receiver = cosock.channel.new()
-        willing[receive_receiver] = function()
-            receive_receiver:receive()
-            self.Break()
+        for _, subscription in pairs(self.eventing_subscription) do
+            subscription.expiration = 0
         end
-        cosock.spawn(function()
-            while receive_receiver do
-                -- wait for anything that we are willing to receive from
-                local ready, select_error = cosock.socket.select(list_from(willing))
-                if select_error then
-                    -- stop on unexpected error
-                    log.error(self.name, "receive", "select", select_error)
-                    break
-                end
-                while 0 < #ready do
-                    local receiver = table.remove(ready, 1)
-                    local ok, able_error = pcall(willing[receiver])
-                    if not ok then
-                        local class_able_error = classify.class(able_error)
-                        if self.Break == class_able_error then
-                            log.debug(self.name, "receive", "break", table.unpack(able_error))
-                            receive_receiver = nil -- break out of outer loop
-                        else
-                            if self.Close == class_able_error then
-                                log.debug(self.name, "receive", "close", table.unpack(able_error))
-                            else
-                                log.error(self.name, "receive", "close", able_error)
-                            end
-                            receiver:close()
-                            willing[receiver] = nil
-                        end
-                    end
-                end
-            end
-            for receiver in pairs(willing) do
-                receiver:close()
-            end
-            willing = {}
-        end, table.concat({self.name, "receive"}, "\t"))
 
-        -- subscribe thread
-        local subscribe_receiver
-        self.subscribe_sender, subscribe_receiver = cosock.channel.new()
+        -- thread
+
+        local thread_receiver
+        self.thread_sender, thread_receiver = cosock.channel.new()
+        willing[thread_receiver] = function()
+            local received = thread_receiver:receive()
+            if not received then
+                for _, receiver in ipairs{discovery_socket, eventing_socket} do
+                    receiver:close()
+                    willing[receiver] = nil
+                end
+                self.Close()
+            end
+        end
+
         cosock.spawn(function()
-            while true do
+            while next(willing) do
                 local timeout_min = nil -- forever
                 local before = epoch_time()
                 for _, subscription in pairs(self.eventing_subscription) do
@@ -294,31 +276,38 @@ return classify.single({    -- UPnP
                         timeout_min = math.max(0, math.min(timeout_min, timeout))
                     end
                 end
-                local ready, select_error = cosock.socket.select({subscribe_receiver}, {}, timeout_min)
-                if select_error then
-                    -- stop on unexpected error
-                    log.error(self.name, "subscribe", "select", select_error)
-                    break
-                end
+                local ready = cosock.socket.select(list_from(willing), {}, timeout_min)
                 if ready then
-                    if 0 == subscribe_receiver:receive() then
-                        break
-                    end
-                else    -- timeout
-                    local after = epoch_time()
-                    for path, subscription in pairs(self.eventing_subscription) do
-                        if (after >= subscription.expiration) then
-                            self:eventing_subscription_renew(path, subscription)
+                    while 0 < #ready do
+                        local receiver = table.remove(ready, 1)
+                        local ok, able_error = pcall(willing[receiver])
+                        if not ok then
+                            if self.Close == classify.class(able_error) then
+                                log.debug(self.name, "close", table.unpack(able_error))
+                            else
+                                log.error(self.name, "close", able_error)
+                            end
+                            receiver:close()
+                            willing[receiver] = nil
                         end
                     end
                 end
+                local after = epoch_time()
+                for path, subscription in pairs(self.eventing_subscription) do
+                    if (after >= subscription.expiration) then
+                        self:eventing_subscription_renew(path, subscription)
+                    end
+                end
             end
-        end, table.concat({self.name, "subscribe"}, "\t"))
+            log.debug(self.name, "stop")
+        end, self.name)
     end,
 
     stop = function(self)
-        self.receive_sender:send(0)
-        self.subscribe_sender:send(0)
+        if self.thread_sender then
+            self.thread_sender:close()
+            self.thread_sender = nil
+        end
     end,
 
     discovery_notify = function(self, usn, notify)
@@ -334,6 +323,9 @@ return classify.single({    -- UPnP
     end,
 
     discovery_search = function(self, address, port, st, mx)
+        if not self.thread_sender then
+            log.error(self.name, "stopped")
+        end
         log.debug(self.name, "discovery", "search", address, port, st, mx)
         local request = {
             table.concat({"M-SEARCH", "*", self.PROTOCOL}, " "),
@@ -357,37 +349,9 @@ return classify.single({    -- UPnP
         self:discovery_search(address, port, st)
     end,
 
-    eventing_address_for = function(self, peer)
-        local address = address_for(peer)
-        local eventing_address = self.eventing_address[peer]
-        if eventing_address and address ~= eventing_address then
-            -- address that peer should use has changed
-            -- invalidate each self.eventing_subscription with peer
-            for _, subscription in pairs(self.eventing_subscription) do
-                if peer == subscription.peer then
-                    subscription.sid = nil
-                    subscription.expiration = 0    -- renew immediately
-                end
-            end
-        end
-        self.eventing_address[peer] = address
-        return address
-    end,
-
-    eventing_address_change = function(self)
-        local peer_set = {}
-        for _, subscription in pairs(self.eventing_subscription) do
-            peer_set[subscription.peer] = true
-        end
-        for peer in pairs(peer_set) do
-            self:eventing_address_for(peer)
-        end
-    end,
-
     eventing_subscription_new = function(self, url, path)
         local peer = table.unpack(http:url_parse(url))
-        local address = self:eventing_address_for(peer)
-        local callback = "http://" .. address .. ":" .. self.port .. "/" .. path
+        local callback = "http://" .. address_for(peer) .. ":" .. self.eventing_port .. "/" .. path
         local request_header = {
             "CALLBACK: <" .. callback .. ">",
             "NT: upnp:event",
@@ -400,21 +364,20 @@ return classify.single({    -- UPnP
         local subscription = {
             url = url,
             expiration = now + 300, -- (re)new later unless success (below)
-            peer = peer,
         }
         self.eventing_subscription[path] = subscription
         local response, response_error = http:transact(url, "SUBSCRIBE", self.read_timeout, request_header)
         if response_error then
-            log.error(self.name, "event", "new", url, path, callback, response_error)
+            log.error(self.name, "eventing", "new", url, path, callback, response_error)
         else
             local status, header = table.unpack(response)
             local _, code, reason = table.unpack(status)
             if http.OK ~= code then
-                log.error(self.name, "event", "new", url, path, callback, reason or code)
+                log.error(self.name, "eventing", "new", url, path, callback, reason or code)
                 return
             end
             local sid, timeout = header.sid, header.timeout
-            log.debug(self.name, "event", "new", url, path, callback, sid, timeout)
+            log.debug(self.name, "eventing", "new", url, path, callback, sid, timeout)
             local duration = math.max(60, tonumber(timeout:match("Second%-(%d+)")))
             -- success. renew before expiration
             subscription.sid = sid
@@ -430,15 +393,15 @@ return classify.single({    -- UPnP
             }
             local response, response_error = http:transact(url, "SUBSCRIBE", self.read_timeout, request_header)
             if response_error then
-                log.error(self.name, "event", "renew", url, path, sid, response_error)
+                log.error(self.name, "eventing", "renew", url, path, sid, response_error)
             else
                 local status, header = table.unpack(response)
                 local _, code, reason = table.unpack(status)
                 if http.OK ~= code then
-                    log.error(self.name, "event", "renew", url, path, sid, reason or code)
+                    log.error(self.name, "eventing", "renew", url, path, sid, reason or code)
                 else
                     local timeout = header.timeout
-                    log.debug(self.name, "event", "renew", url, path, sid, timeout)
+                    log.debug(self.name, "eventing", "renew", url, path, sid, timeout)
                     local duration = math.max(60, tonumber(timeout:match("Second%-(%d+)")))
                     subscription.expiration = epoch_time() + duration - 8
                     return
@@ -465,6 +428,9 @@ return classify.single({    -- UPnP
     end,
 
     eventing_subscribe = function(self, location, url, device, service, statevar_list, notify)
+        if not self.thread_sender then
+            log.error(self.name, "stopped")
+        end
         if "/" == url:sub(1, 1) then
             -- qualify relative url with location prefix
             url = location:match("(http://[%a%d-%.:]+)/.*") .. url
@@ -474,6 +440,6 @@ return classify.single({    -- UPnP
         self:eventing_notify(prefix, statevar_list, notify)
         local path = table.concat({prefix, table.concat(statevar_list, ",")}, "/")
         self:eventing_subscription_new(url, path)
-        self.subscribe_sender:send(1)
+        self.thread_sender:send(1)
     end,
 })
