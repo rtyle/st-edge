@@ -455,7 +455,7 @@ return classify.single({    -- UPnP
     restart = function(self)
         self:stop()
         self:start()
-    end
+    end,
 
     discovery_notify = function(self, usn, notify)
         for scheme, value in pairs(usn) do

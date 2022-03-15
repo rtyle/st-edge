@@ -118,6 +118,7 @@ local Parent = classify.single({
     _init = function(class, self, driver, device)
         classify.super(class):_init(self, driver, device)
         self.avr = denon.AVR(device.device_network_id, upnp)
+        self.child = {}
     end,
 
     removed = function(self)
@@ -149,10 +150,12 @@ Child = classify.single({
         self.zone = it()
         ready:acquire(parent_device_network_id, function(parent)
             self.parent = parent
+            parent.child[self] = true
         end)
     end,
 
     removed = function(self)
+        self.parent.child[self] = nil
         self.parent = nil
         return Adapter.removed(self)
     end,
