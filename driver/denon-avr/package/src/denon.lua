@@ -122,6 +122,7 @@ denon = {
                 self.subscription:unsubscribe()
                 self.subscription = nil
             end
+            self.eventing = nil
         end,
 
         eventing_mute = function(self, channel, value)
