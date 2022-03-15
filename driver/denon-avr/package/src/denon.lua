@@ -60,7 +60,7 @@ denon = {
                         log.error(LOG, self.uuid, "find", "not", uuid)
                         return
                     end
-                    self.thread_sender:send(0)  -- sleep
+                    self:send(0)    -- sleep
                     log.debug(LOG, self.uuid, "find", address, port, header.location, device.friendlyName)
                     self.location = header.location
                     self.device = device
@@ -74,7 +74,7 @@ denon = {
                                 self.subscription = self.upnp:eventing_subscribe(location, url,
                                     header.usn.uuid, urn, nil, self.eventing,
                                     function()
-                                        self.thread_sender:send(1)    -- poll
+                                        self:send(1)    -- poll
                                     end)
                             end
                             break
@@ -91,11 +91,11 @@ denon = {
                     end
                     local ready = cosock.socket.select({thread_receiver}, {}, timeout)
                     if ready then
-                        local received = thread_receiver:receive()
-                        if not received then
+                        local value = thread_receiver:receive()
+                        if not value then
                             break   -- stop
                         else
-                            if 0 == received then
+                            if 0 == value then
                                 timeout = nil   -- sleep
                             else
                                 timeout = poll  -- poll
@@ -106,6 +106,12 @@ denon = {
                 thread_receiver:close()
                 log.debug(LOG, self.uuid, "stop")
             end, table.concat({LOG, self.uuid}, "\t"))
+        end,
+
+        send = function(self, value)
+            if self.thread_sender then
+                self.thread_sender:send(value)
+            end
         end,
 
         stop = function(self)
