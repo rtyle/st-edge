@@ -99,9 +99,9 @@ return classify.single({    -- UPnP
         self.name = _name or "UPnP"
 
         log.debug(self.name)
+        self.eventing_subscription  = {}
+        self.eventing_notification  = WeakKeys()
         self.discovery_notification = WeakKeys()
-        self.eventing_subscription = {}
-        self.eventing_notification = {}
     end,
 
     start = function(self)
@@ -199,7 +199,7 @@ return classify.single({    -- UPnP
                 self.Close(self.eventing_port)
             end
             local peer_address, peer_port = accept_socket:getpeername()
-            log.debug(self.name, "eventing", "accept", peer_address, peer_port)
+            log.debug(self.name, "accept", peer_address, peer_port)
             local reader = http:reader(accept_socket, self.read_timeout)
             willing[accept_socket] = function()
                 local response_ok, response = pcall(http.message, http, reader)
@@ -245,7 +245,9 @@ return classify.single({    -- UPnP
             end
         end
 
+        -- (re)new each subscription immediately
         for _, subscription in pairs(self.eventing_subscription) do
+            subscription.sid = nil
             subscription.expiration = 0
         end
 
@@ -439,7 +441,11 @@ return classify.single({    -- UPnP
         statevar_list = statevar_list or {""}
         self:eventing_notify(prefix, statevar_list, notify)
         local path = table.concat({prefix, table.concat(statevar_list, ",")}, "/")
-        self:eventing_subscription_new(url, path)
-        self.thread_sender:send(1)
+        if notify then
+            self:eventing_subscription_new(url, path)
+        else
+            self.eventing_subscription[path] = nil
+        end
+        self.thread_sender:send(0)
     end,
 })
