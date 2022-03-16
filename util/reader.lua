@@ -81,4 +81,11 @@ return classify.single({
         end
         return self:read_line(line)
     end,
+
+    read_chunk = function(self)
+        if 0 == #self._queue then
+            self:_pump_once()
+        end
+        return table.remove(self._queue, 1)
+    end,
 })

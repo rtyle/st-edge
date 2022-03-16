@@ -7,7 +7,6 @@ local UPnP      = require "upnp"
 local denon     = require "denon"
 
 local upnp = UPnP()
-upnp:start()
 
 local avr_set = {}
 
@@ -26,6 +25,12 @@ cosock.spawn(function()
     for _ = 1, 2 do
         pcall(discover.search, discover)
         cosock.socket.sleep(8)
+    end
+
+    for _, avr in pairs(avr_set) do
+        for _, zone in ipairs(avr.ZONE) do
+            avr:refresh(zone)
+        end
     end
 
     cosock.socket.sleep(1200)

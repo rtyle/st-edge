@@ -1,6 +1,9 @@
+-- vim: ts=4:sw=4:expandtab
+
 local cosock    = require "cosock"
 local log       = require "log"
 
+local http      = require "http"
 local xml       = require "xml"
 
 local classify  = require "classify"
@@ -25,9 +28,37 @@ denon = {
     ST = UPnP.USN{[UPnP.USN.URN] = MEDIA_RENDERER},
 
     AVR = classify.single({
-        _init = function(_, self, uuid, upnp)
+        ZONE = {
+            "MainZone",
+            "Zone2",
+            "Zone3",
+        },
+
+        INPUT_SOURCES = {
+            -- these sources may be renamed and have hardware inputs assigned to them
+            CBLSAT  = 'CBL/SAT',
+            DVD     = 'DVD',
+            BD      = 'Blu-ray',
+            GAME    = 'Game',
+            MPLAY   = 'Media Player',
+            TV      = 'TV Audio',
+            AUX1    = 'AUX1',
+            AUX2    = 'AUX2',
+            CD      = 'CD',
+            PHONO   = 'Phono',
+            -- these sources cannot be renamed and require further configuration
+            TUNER   = 'Tuner',
+            BT      = 'Bluetooth',
+            IPOD    = 'iPod/USB',
+            NETHOME = 'Online Music',
+            SERVER  = 'Media Server',
+            IRP     = 'Internet Radio',
+        },
+
+        _init = function(_, self, uuid, upnp, read_timeout)
             self.upnp = upnp
             self.uuid = uuid
+            self.read_timeout = read_timeout or 1
             log.debug(LOG, self.uuid)
 
             -- self.eventing capture is garbage collected with self
@@ -62,6 +93,7 @@ denon = {
                     end
                     self:thread_send(0)    -- sleep
                     log.debug(LOG, self.uuid, "find", address, port, header.location, device.friendlyName)
+                    self.address = address
                     self.location = header.location
                     self.device = device
                     for _, service in ipairs(device.serviceList.service) do
@@ -130,6 +162,59 @@ denon = {
 
         eventing_volume = function(self, channel, value)
             log.warn(LOG, self.uuid, "event", "drop", "volume", channel, value)
+        end,
+
+        command = function(self, zone, command, form)
+            -- AVR expects urlencoded form to be in body (instead of appended to path)
+            local url = "http://" .. self.address .. "/MainZone/index.put.asp"
+            local data = "ZoneName=" .. zone .. "&cmd0=Put" .. form
+            log.debug(LOG, self.uuid, zone, command, form, "curl -d '" .. data .. "' -X POST " .. url)
+            local request_header = {
+                "CONTENT-TYPE: application/x-www-form-urlencoded",
+            }
+            local response, response_error = http:transact(url, "POST", self.upnp.read_timeout, request_header, data)
+            if response_error then
+                log.error(LOG, self.uuid, "command", zone, command, form, response_error)
+                return
+            end
+            local status, _, body = table.unpack(response)
+            local _, code, reason = table.unpack(status)
+            if http.OK ~= code then
+                log.error(LOG, self.uuid, "command", zone, command, form, reason or code)
+                return
+            end
+            local result_ok, result = pcall(function()
+                return xml.decode(body).root
+            end)
+            if not result_ok then
+                log.error(LOG, self.uuid, "command", zone, command, form, body, result)
+                return
+            end
+            return result
+        end,
+
+        refresh = function(self, zone)
+            local url = "http://" .. self.address .. "/goform/formMainZone_MainZoneXml.xml?ZoneName=" .. zone
+            log.debug(LOG, self.uuid, zone, "refresh", "curl -X GET " .. url)
+            local response, response_error = http:transact(url, "GET", self.upnp.read_timeout)
+            if response_error then
+                log.error(LOG, self.uuid, "refresh", zone, response_error)
+                return
+            end
+            local status, _, body = table.unpack(response)
+            local _, code, reason = table.unpack(status)
+            if http.OK ~= code then
+                log.error(LOG, self.uuid, "refresh", zone, reason or code)
+                return
+            end
+            local result_ok, result = pcall(function()
+                return xml.decode(body).root
+            end)
+            if not result_ok then
+                log.error(LOG, self.uuid, "refresh", zone, body, result)
+                return
+            end
+            return result
         end,
     }),
 

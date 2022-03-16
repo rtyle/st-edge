@@ -8,7 +8,9 @@ local LOG = "http"
 
 return {
     -- expected HTTP protocol version
-    PROTOCOL  = "HTTP/1.1",
+    PROTOCOL_1_0    = "HTTP/1.0",
+    PROTOCOL_1_1    = "HTTP/1.1",
+    PROTOCOL        = "HTTP/1.1",
 
     -- expected HTTP response status codes
     OK        = "200",
@@ -57,6 +59,21 @@ return {
                 if 0 < length then
                     return {action, header, reader:read_exactly(tonumber(length))}
                 end
+            elseif self.PROTOCOL_1_0 == action[1] then
+                local chunks = {}
+                while true do
+                    local chunk_ok, chunk = pcall(reader.read_chunk, reader)
+                    if chunk_ok then
+                        table.insert(chunks, chunk)
+                    else
+                        if "closed" == chunk then
+                            break
+                        else
+                            error(chunk, 0)
+                        end
+                    end
+                end
+                return {action, header, table.concat(chunks)}
             end
         end
         return {action, header}

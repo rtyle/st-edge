@@ -134,7 +134,7 @@ local Parent = classify.single({
                 PARENT,
                 label),
             function(parent)
-                for _, zone in ipairs{"MainZone", "Zone2", "Zone3"} do
+                for _, zone in ipairs(parent.avr.ZONE) do
                     Child.create(driver, parent, label, zone)
                 end
             end
