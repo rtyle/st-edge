@@ -165,30 +165,30 @@ denon = {
             log.warn(LOG, self.uuid, "event", "drop", "volume", channel, value)
         end,
 
-        command = function(self, zone, command, form)
+        command = function(self, zone, form)
             -- AVR expects urlencoded form to be in body (instead of appended to path)
             local url = "http://" .. self.address .. "/MainZone/index.put.asp"
-            local data = "ZoneName=" .. zone .. "&cmd0=Put" .. form
-            log.debug(LOG, self.uuid, zone, command, form, "curl -d '" .. data .. "' -X POST " .. url)
+            local body_form = "ZoneName=" .. zone .. "&cmd0=Put" .. form
+            log.debug(LOG, self.uuid, zone, form, "curl -d '" .. body_form .. "' -X POST " .. url)
             local request_header = {
                 "CONTENT-TYPE: application/x-www-form-urlencoded",
             }
-            local response, response_error = http:transact(url, "POST", self.upnp.read_timeout, request_header, data)
+            local response, response_error = http:transact(url, "POST", self.upnp.read_timeout, request_header, body_form)
             if response_error then
-                log.error(LOG, self.uuid, "command", zone, command, form, response_error)
+                log.error(LOG, self.uuid, "command", zone, form, response_error)
                 return
             end
             local status, _, body = table.unpack(response)
             local _, code, reason = table.unpack(status)
             if http.OK ~= code then
-                log.error(LOG, self.uuid, "command", zone, command, form, reason or code)
+                log.error(LOG, self.uuid, "command", zone, form, reason or code)
                 return
             end
             local result_ok, result = pcall(function()
                 return xml.decode(body).root
             end)
             if not result_ok then
-                log.error(LOG, self.uuid, "command", zone, command, form, body, result)
+                log.error(LOG, self.uuid, "command", zone, form, body, result)
                 return
             end
             return result
