@@ -36,6 +36,13 @@ cosock.spawn(function()
         cosock.socket.sleep(8)
     end
 
+    for _, avr in pairs(avr_set) do
+        for _, zone in ipairs(avr.ZONE) do
+            avr:command_on(zone, true)
+            avr:command_on(zone, false)
+        end
+    end
+
     cosock.socket.sleep(1200)
 
     for _, avr in pairs(avr_set) do

@@ -79,8 +79,7 @@ return {
             if select_error then
                 error(select_error, 0)     -- expect "timeout", below
             end
-            local whole, part
-            whole, receive_error, part = socket:receive(2048)
+            local whole, receive_error, part = socket:receive(2048)
             if "closed" == receive_error then
                 closed = true
             end

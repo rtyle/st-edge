@@ -18,6 +18,7 @@ local CHILD         = "zone"
 
 -- Adapter callback support from device
 local ADAPTER       = "adapter"
+local POWER         = "power"
 local REMOVED       = "removed"
 local REFRESH       = "refresh"
 
@@ -217,6 +218,11 @@ Child = classify.single({
         self.parent.avr:refresh(self.zone)
     end,
 
+    power = function(self, on)
+        self.parent.avr:command_on(self.zone, on)
+        self:refresh()
+    end,
+
     create = function(driver, parent, label, zone)
         Adapter.create(driver,
             table.concat({parent.device.device_network_id, zone}, "\t"),
@@ -227,6 +233,14 @@ Child = classify.single({
 
     capability_handlers = {
         [capabilities.refresh.ID] = Adapter.capability_handlers[capabilities.refresh.ID],
+        [capabilities.switch.ID] = {
+            [capabilities.switch.commands.on.NAME] = function(_, device)
+                Adapter.call(device, POWER, true)
+            end,
+            [capabilities.switch.commands.off.NAME] = function(_, device)
+                Adapter.call(device, POWER, false)
+            end,
+        },
     },
 }, Adapter)
 

@@ -199,6 +199,14 @@ denon = {
             return result
         end,
 
+        command_on = function(self, zone, on)
+            local value = "OFF"
+            if on then
+                value = "ON"
+            end
+            return self:command(zone, "Zone_OnOff%2f" .. value)
+        end,
+
         refresh = function(self, zone)
             if not zone then
                 for _, _zone in ipairs(self.ZONE) do
