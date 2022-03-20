@@ -82,10 +82,14 @@ return classify.single({
         return self:read_line(line)
     end,
 
-    read_chunk = function(self)
-        if 0 == #self._queue then
-            self:_pump_once()
-        end
-        return table.remove(self._queue, 1)
+    read_all = function(self)
+        pcall(function()
+            while true do
+                self:_pump_once()
+            end
+        end)
+        local all = table.concat(self._queue)
+        self._queue = {}
+        return all
     end,
 })

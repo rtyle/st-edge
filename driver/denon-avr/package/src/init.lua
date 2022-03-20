@@ -1,6 +1,7 @@
 -- vim: ts=4:sw=4:expandtab
 
 -- require st provided libraries
+local capabilities  = require "st.capabilities"
 local cosock        = require "cosock"
 local Driver        = require "st.driver"
 local log           = require "log"
@@ -18,6 +19,7 @@ local CHILD         = "zone"
 -- Adapter callback support from device
 local ADAPTER       = "adapter"
 local REMOVED       = "removed"
+local REFRESH       = "refresh"
 
 local LOG           = "driver"
 
@@ -81,6 +83,14 @@ local Adapter = classify.single({
         return device.device_network_id
     end,
 
+    notify_online = function(self, online)
+        if online then
+            self.device:online()
+        else
+            self.device:offline()
+        end
+    end,
+
     call = function(device, method, ...)
         local adapter = device:get_field(ADAPTER)
         if adapter then
@@ -110,6 +120,15 @@ local Adapter = classify.single({
         return device_network_id
     end,
 })
+-- Adapter subclasses cannot extend its capability_handlers by lua inheritance
+-- but can copy entries
+Adapter.capability_handlers = {
+    [capabilities.refresh.ID] = {
+        [capabilities.refresh.commands.refresh.NAME] = function(_, device)
+            Adapter.call(device, REFRESH)
+        end,
+    },
+}
 
 local Child
 local upnp = UPnP()
@@ -117,14 +136,32 @@ local upnp = UPnP()
 local Parent = classify.single({
     _init = function(class, self, driver, device)
         classify.super(class):_init(self, driver, device)
-        self.avr = denon.AVR(device.device_network_id, upnp)
         self.child = {}
+        self.avr = denon.AVR(device.device_network_id, upnp,
+            function(online)
+                self:notify_online(online)
+                for _, child in ipairs(self.child) do
+                    child:notify_online(online)
+                end
+            end,
+            function(zone, power, mute, volume, input)
+                local child = self.child[zone]
+                if child then
+                    child:notify_refresh(power, mute, volume, input)
+                end
+            end,
+            1
+        )
     end,
 
     removed = function(self)
         self.avr:stop()
         self.avr = nil
         return Adapter.removed(self)
+    end,
+
+    refresh = function(self)
+        self.avr:refresh()
     end,
 
     create = function(driver, device_network_id, label)
@@ -140,6 +177,10 @@ local Parent = classify.single({
             end
         )
     end,
+
+    capability_handlers = {
+        [capabilities.refresh.ID] = Adapter.capability_handlers[capabilities.refresh.ID],
+    },
 }, Adapter)
 
 Child = classify.single({
@@ -150,14 +191,30 @@ Child = classify.single({
         self.zone = it()
         ready:acquire(parent_device_network_id, function(parent)
             self.parent = parent
-            parent.child[self] = true
+            parent.child[self.zone] = self
         end)
     end,
 
     removed = function(self)
-        self.parent.child[self] = nil
+        self.parent.child[self.zone] = nil
         self.parent = nil
         return Adapter.removed(self)
+    end,
+
+    notify_refresh = function(self, power, mute, volume, input)
+        log.debug(LOG, self.device.device_network_id, "power"    , power)
+        log.debug(LOG, self.device.device_network_id, "mute"     , mute)
+        log.debug(LOG, self.device.device_network_id, "volume"   , volume)
+        log.debug(LOG, self.device.device_network_id, "input"    , input)
+        if power then
+            self.device:emit_event(capabilities.switch.switch.on())
+        else
+            self.device:emit_event(capabilities.switch.switch.off())
+        end
+    end,
+
+    refresh = function(self)
+        self.parent.avr:refresh(self.zone)
     end,
 
     create = function(driver, parent, label, zone)
@@ -167,6 +224,10 @@ Child = classify.single({
             table.concat({label, zone}, " "),
             parent.device.id)
     end,
+
+    capability_handlers = {
+        [capabilities.refresh.ID] = Adapter.capability_handlers[capabilities.refresh.ID],
+    },
 }, Adapter)
 
 Driver("denon-avr", {
@@ -198,6 +259,7 @@ Driver("denon-avr", {
             lifecycle_handlers = {
                 init = function(driver, device) ready:add(Parent(driver, device)) end,
             },
+            capability_handlers = Parent.capability_handlers,
         },
         {
             NAME = CHILD,
@@ -205,6 +267,7 @@ Driver("denon-avr", {
             lifecycle_handlers = {
                 init = function(driver, device) ready:add(Child(driver, device)) end,
             },
+            capability_handlers = Child.capability_handlers,
         },
     },
 }):run()

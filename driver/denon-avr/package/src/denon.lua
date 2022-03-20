@@ -12,8 +12,9 @@ local UPnP      = require "upnp"
 -- as of this writing, the latest Denon AVR-X4100W firmware,
 -- UPnP service eventing are all worthless for our purposes
 -- except RenderingControl, which will sendEvents only on its LastChange state variable.
--- this may have Mute and/or Volume state but only for the Master channel.
--- we are kept in sync with the device's Mute state.
+-- this may have Mute and/or Volume state but only for the Master channel (MainZone).
+-- for the MainZone only,
+-- we are kept in sync with the Mute state but only
 -- we are not kept in sync with the device's Volume state and its value may be wrong.
 -- reacting to the failure to renew a subscription allows us to rediscover the device.
 -- the device may simply be offline or it may have relocated (IP address changed).
@@ -22,6 +23,8 @@ local RENDERING_CONTROL
 local MEDIA_RENDERER
     = table.concat({UPnP.USN.SCHEMAS_UPNP_ORG, UPnP.USN.DEVICE, "MediaRenderer", 1}, ":")
 
+local MAIN_ZONE = "MainZone"
+
 local LOG = "AVR"
 local denon
 denon = {
@@ -29,13 +32,13 @@ denon = {
 
     AVR = classify.single({
         ZONE = {
-            "MainZone",
+            MAIN_ZONE,
             "Zone2",
             "Zone3",
         },
 
-        INPUT_SOURCES = {
-            -- these sources may be renamed and have hardware inputs assigned to them
+        INPUT = {   -- default names by API id
+            -- these may be renamed and have hardware inputs assigned to them
             CBLSAT  = 'CBL/SAT',
             DVD     = 'DVD',
             BD      = 'Blu-ray',
@@ -55,10 +58,13 @@ denon = {
             IRP     = 'Internet Radio',
         },
 
-        _init = function(_, self, uuid, upnp, read_timeout)
+        _init = function(_, self, uuid, upnp, notify_online, notify_refresh, read_timeout)
             self.upnp = upnp
             self.uuid = uuid
+            self.notify_online = notify_online
+            self.notify_refresh = notify_refresh
             self.read_timeout = read_timeout or 1
+            self.online = false
             log.debug(LOG, self.uuid)
 
             -- self.eventing capture is garbage collected with self
@@ -91,7 +97,7 @@ denon = {
                         log.error(LOG, self.uuid, "find", "not", uuid)
                         return
                     end
-                    self:thread_send(0)    -- sleep
+                    self:thread_send(true)    -- online
                     log.debug(LOG, self.uuid, "find", address, port, header.location, device.friendlyName)
                     self.address = address
                     self.location = header.location
@@ -106,7 +112,7 @@ denon = {
                                 self.subscription = self.upnp:eventing_subscribe(location, url,
                                     header.usn.uuid, urn, nil, self.eventing,
                                     function()
-                                        self:thread_send(1)    -- poll
+                                        self:thread_send(false)    -- offline
                                     end)
                             end
                             break
@@ -115,22 +121,20 @@ denon = {
                 end
 
                 local discover = denon.Discover(self.upnp, find, UPnP.USN{[UPnP.USN.UUID] = self.uuid})
-                local poll = 60
-                local timeout = poll
-                while true do
-                    if timeout then
-                        pcall(discover.search, discover)    -- poll
+                while nil ~= self.online do
+                    local timeout = nil
+                    if not self.online then
+                        pcall(discover.search, discover)
+                        timeout = 60
                     end
                     local ready = cosock.socket.select({thread_receiver}, {}, timeout)
                     if ready then
-                        local value = thread_receiver:receive()
-                        if not value then
-                            break   -- stop
-                        else
-                            if 0 == value then
-                                timeout = nil   -- sleep
-                            else
-                                timeout = poll  -- poll
+                        local online = thread_receiver:receive() -- nil (stop), true or false
+                        if self.online ~= online then
+                            self.online = online
+                            pcall(self.notify_online, online)
+                            if online then
+                                self:refresh()
                             end
                         end
                     end
@@ -157,8 +161,8 @@ denon = {
             self.eventing = nil
         end,
 
-        eventing_mute = function(self, channel, value)
-            log.warn(LOG, self.uuid, "event", "drop", "mute", channel, value)
+        eventing_mute = function(self, _, _)
+            self:refresh(MAIN_ZONE)
         end,
 
         eventing_volume = function(self, channel, value)
@@ -169,11 +173,12 @@ denon = {
             -- AVR expects urlencoded form to be in body (instead of appended to path)
             local url = "http://" .. self.address .. "/MainZone/index.put.asp"
             local body_form = "ZoneName=" .. zone .. "&cmd0=Put" .. form
-            log.debug(LOG, self.uuid, zone, form, "curl -d '" .. body_form .. "' -X POST " .. url)
+            log.debug(LOG, self.uuid, "command", zone, form, "curl -d '" .. body_form .. "' -X POST " .. url)
             local request_header = {
                 "CONTENT-TYPE: application/x-www-form-urlencoded",
             }
-            local response, response_error = http:transact(url, "POST", self.upnp.read_timeout, request_header, body_form)
+            local response, response_error
+                = http:transact(url, "POST", self.read_timeout, request_header, body_form)
             if response_error then
                 log.error(LOG, self.uuid, "command", zone, form, response_error)
                 return
@@ -195,9 +200,15 @@ denon = {
         end,
 
         refresh = function(self, zone)
+            if not zone then
+                for _, _zone in ipairs(self.ZONE) do
+                    self:refresh(_zone)
+                end
+                return
+            end
             local url = "http://" .. self.address .. "/goform/formMainZone_MainZoneXml.xml?ZoneName=" .. zone
-            log.debug(LOG, self.uuid, zone, "refresh", "curl -X GET " .. url)
-            local response, response_error = http:transact(url, "GET", self.upnp.read_timeout)
+            log.debug(LOG, self.uuid, "refresh", zone, "curl -X GET " .. url)
+            local response, response_error = http:transact(url, "GET", self.read_timeout)
             if response_error then
                 log.error(LOG, self.uuid, "refresh", zone, response_error)
                 return
@@ -209,13 +220,31 @@ denon = {
                 return
             end
             local result_ok, result = pcall(function()
-                return xml.decode(body).root
+                return xml.decode(body).root.item
             end)
             if not result_ok then
                 log.error(LOG, self.uuid, "refresh", zone, body, result)
                 return
             end
-            return result
+            pcall(self.notify_refresh, zone,
+                "on" == result.ZonePower.value:lower(),
+                "on" == result.Mute.value:lower(),
+                -- convert API volume value to that shown on the front panel (and web UI)
+                -- volume shown on monitor hooked up to AVR will be 2 more than this.
+                80 + (tonumber(result.MasterVolume.value) or -80),
+                (function(a, b)
+                    if "Online Music" == a then
+                        if "SERVER" == b then
+                            return "Media Server"
+                        elseif "IRADIO" == b then
+                            return "Internet Radio"
+                        else -- "NET"
+                            return "Online Music"
+                        end
+                    end
+                    return a
+                end)(result.InputFuncSelect.value, result.NetFuncSelect.value)
+            )
         end,
     }),
 

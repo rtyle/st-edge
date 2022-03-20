@@ -60,20 +60,7 @@ return {
                     return {action, header, reader:read_exactly(tonumber(length))}
                 end
             elseif self.PROTOCOL_1_0 == action[1] then
-                local chunks = {}
-                while true do
-                    local chunk_ok, chunk = pcall(reader.read_chunk, reader)
-                    if chunk_ok then
-                        table.insert(chunks, chunk)
-                    else
-                        if "closed" == chunk then
-                            break
-                        else
-                            error(chunk, 0)
-                        end
-                    end
-                end
-                return {action, header, table.concat(chunks)}
+                return {action, header, reader:read_all()}
             end
         end
         return {action, header}
@@ -81,12 +68,27 @@ return {
 
     reader = function(_, socket, read_timeout)
         socket:settimeout(0)    -- when anything ready, receive something
+        -- socket:receive may receive something and indicate it is closed at once.
+        -- we separate these events by returning the something and thereafter returning nil, "closed".
+        local closed = false
         return Reader(function()
-            local _, _, receive_error = cosock.socket.select({socket}, {}, read_timeout)
-            if receive_error then
-                error(receive_error, 0)     -- expect "timeout", below
+            if closed then
+                return nil, "closed"
             end
-            return socket:receive(2048)
+            local _, _, select_error = cosock.socket.select({socket}, {}, read_timeout)
+            if select_error then
+                error(select_error, 0)     -- expect "timeout", below
+            end
+            local whole, part
+            whole, receive_error, part = socket:receive(2048)
+            if "closed" == receive_error then
+                closed = true
+            end
+            if whole or (part and #part) then
+                return whole, nil, part
+            else
+                return nil, receive_error
+            end
         end)
     end,
 
