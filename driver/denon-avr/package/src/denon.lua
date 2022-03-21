@@ -199,12 +199,32 @@ denon = {
             return result
         end,
 
-        command_on = function(self, zone, on)
+        command_power = function(self, zone, on)
             local value = "OFF"
             if on then
                 value = "ON"
             end
             return self:command(zone, "Zone_OnOff%2f" .. value)
+        end,
+
+        command_mute = function(self, zone, on)
+            local value = "OFF"
+            if on then
+                value = "ON"
+            end
+            return self:command(zone, "VolumeMute%2f" .. value)
+        end,
+
+        command_volume_step = function(self, zone, up)
+            local value = "%3e" -- <
+            if up then
+                value = "%3e"   -- >
+            end
+            return self:command(zone, "MasterVolumeBtn%2f" .. value)
+        end,
+
+        command_volume = function(self, zone, volume)
+            return self:command(zone, "MasterVolumeSet%2f" .. volume - 80)
         end,
 
         refresh = function(self, zone)

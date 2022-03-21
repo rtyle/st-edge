@@ -18,9 +18,12 @@ local CHILD         = "zone"
 
 -- Adapter callback support from device
 local ADAPTER       = "adapter"
+local MUTE          = "mute"
 local POWER         = "power"
 local REMOVED       = "removed"
 local REFRESH       = "refresh"
+local VOLUME        = "volume"
+local VOLUME_STEP   = "volume_step"
 
 local LOG           = "driver"
 
@@ -212,6 +215,16 @@ Child = classify.single({
         else
             self.device:emit_event(capabilities.switch.switch.off())
         end
+        if mute then
+            self.device:emit_event(capabilities.audioMute.mute.muted())
+        else
+            self.device:emit_event(capabilities.audioMute.mute.unmuted())
+        end
+        if volume then
+            self.device:emit_event(capabilities.audioVolume.volume(volume))
+        else
+            self.device:emit_event(capabilities.audioVolume.volume(volume))
+        end
     end,
 
     refresh = function(self)
@@ -219,7 +232,22 @@ Child = classify.single({
     end,
 
     power = function(self, on)
-        self.parent.avr:command_on(self.zone, on)
+        self.parent.avr:command_power(self.zone, on)
+        self:refresh()
+    end,
+
+    mute = function(self, on)
+        self.parent.avr:command_mute(self.zone, on)
+        self:refresh()
+    end,
+
+    volume = function(self, volume)
+        self.parent.avr:command_volume(self.zone, volume)
+        self:refresh()
+    end,
+
+    volume_step = function(self, up)
+        self.parent.avr:command_volume_step(self.zone, up)
         self:refresh()
     end,
 
@@ -239,6 +267,28 @@ Child = classify.single({
             end,
             [capabilities.switch.commands.off.NAME] = function(_, device)
                 Adapter.call(device, POWER, false)
+            end,
+        },
+        [capabilities.audioMute.ID] = {
+            [capabilities.audioMute.commands.mute.NAME] = function(_, device)
+                Adapter.call(device, MUTE, true)
+            end,
+            [capabilities.audioMute.commands.unmute.NAME] = function(_, device)
+                Adapter.call(device, MUTE, false)
+            end,
+            [capabilities.audioMute.commands.setMute.NAME] = function(_, device, command)
+                Adapter.call(device. MUTE, command.args.mute == "muted")
+            end,
+        },
+        [capabilities.audioVolume.ID] = {
+            [capabilities.audioVolume.commands.setVolume.NAME] = function(_, device, command)
+                Adapter.call(device, VOLUME, command.args.volume)
+            end,
+            [capabilities.audioVolume.commands.volumeUp.NAME] = function(_, device)
+                Adapter.call(device, VOLUME_STEP, true)
+            end,
+            [capabilities.audioVolume.commands.volumeDown.NAME] = function(_, device)
+                Adapter.call(device, VOLUME_STEP, false)
             end,
         },
     },
