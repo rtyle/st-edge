@@ -134,6 +134,7 @@ denon = {
                             self.online = online
                             pcall(self.notify_online, online)
                             if online then
+                                self.input_map, self.input_list = nil, nil
                                 self:refresh()
                             end
                         end
@@ -161,12 +162,12 @@ denon = {
             self.eventing = nil
         end,
 
-        eventing_mute = function(self, _, _)
-            self:refresh(MAIN_ZONE)
+        eventing_mute = function(self, channel, value)
+            log.debug(LOG, self.uuid, "event", "drop", "mute", channel, value)
         end,
 
         eventing_volume = function(self, channel, value)
-            log.warn(LOG, self.uuid, "event", "drop", "volume", channel, value)
+            log.debug(LOG, self.uuid, "event", "drop", "volume", channel, value)
         end,
 
         command = function(self, zone, form)
@@ -227,6 +228,55 @@ denon = {
             return self:command(zone, "MasterVolumeSet%2f" .. volume - 80)
         end,
 
+        command_input = function(self, zone, input)
+            return self:command(zone, "Zone_InputFunction%2f" .. input)
+        end,
+
+        -- return mapping of unhidden source input names
+        -- from those we see when we get them (possibly renamed)
+        -- to those we need when we set them.
+        input = function(self)
+            if self.input_map and self.input_list then
+                return self.input_map, self.input_list
+            end
+            local url = "http://" .. self.address .. "/SETUP/INPUTS/SOURCERENAME/d_Rename.asp"
+            log.debug(LOG, self.uuid, "input", "curl " .. url)
+            local response, response_error = http:get(url, self.read_timeout)
+            if response_error then
+                log.error(LOG, self.uuid, "input", response_error)
+                return
+            end
+            local status, _, body = table.unpack(response)
+            local _, code, reason = table.unpack(status)
+            if http.OK ~= code then
+                log.error(LOG, self.uuid, "input", reason or code)
+                return
+            end
+            -- body is bad XHTML. parse with regex
+            local map = {   -- these sources cannot be renamed
+                ["Tuner"]       = "TUNER",
+                ["Bluetooth"]   = "BT",
+                ["iPod/USB"]    = "USB%2fIPOD",
+                ["NET"]         = "NETHOME",
+                ["SERVER"]      = "SERVER",
+                ["IRADIO"]      = "IRP",
+            }
+            -- add unhidden, potentially renamed, names
+            for set, get in body:gmatch("name=['\"]textFuncRename(%w+)['\"]%s+value=['\"]([^'\"]*)['\"]") do
+                if set == "SATCBL" then
+                    set = "SAT%2fCBL"
+                end
+                map[get] = set
+            end
+            local list = {}
+            for _, set in pairs(map) do
+                table.insert(list, set)
+            end
+            self.input_list = list
+            self.input_map = map
+            return map, list
+        end,
+
         refresh = function(self, zone)
             if not zone then
                 for _, _zone in ipairs(self.ZONE) do
@@ -254,24 +304,20 @@ denon = {
                 log.error(LOG, self.uuid, "refresh", zone, body, result)
                 return
             end
+            self:input()
             pcall(self.notify_refresh, zone,
                 "on" == result.ZonePower.value:lower(),
                 "on" == result.Mute.value:lower(),
                 -- convert API volume value to that shown on the front panel (and web UI)
                 -- volume shown on monitor hooked up to AVR will be 2 more than this.
                 80 + (tonumber(result.MasterVolume.value) or -80),
-                (function(a, b)
+                self.input_map[(function(a, b)
                     if "Online Music" == a then
-                        if "SERVER" == b then
-                            return "Media Server"
-                        elseif "IRADIO" == b then
-                            return "Internet Radio"
-                        else -- "NET"
-                            return "Online Music"
-                        end
+                        return b
                     end
                     return a
-                end)(result.InputFuncSelect.value, result.NetFuncSelect.value)
+                end)(result.InputFuncSelect.value, result.NetFuncSelect.value)],
+                self.input_list
             )
         end,
     }),

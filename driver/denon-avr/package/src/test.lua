@@ -19,7 +19,7 @@ cosock.spawn(function()
                 function(value)
                     log.info("test", "online", value)
                 end,
-                function(zone, power, mute, volume, input)
+                function(zone, power, mute, volume, input, input_list)
                     log.info("test", zone, "power",     power)
                     log.info("test", zone, "mute",      mute)
                     log.info("test", zone, "volume",    volume)
@@ -34,13 +34,6 @@ cosock.spawn(function()
     for _ = 1, 2 do
         pcall(discover.search, discover)
         cosock.socket.sleep(8)
-    end
-
-    for _, avr in pairs(avr_set) do
-        for _, zone in ipairs(avr.ZONE) do
-            avr:command_on(zone, true)
-            avr:command_on(zone, false)
-        end
     end
 
     cosock.socket.sleep(1200)

@@ -18,10 +18,12 @@ local CHILD         = "zone"
 
 -- Adapter callback support from device
 local ADAPTER       = "adapter"
+local COMMAND       = "command"
+local INPUT         = "input"
 local MUTE          = "mute"
 local POWER         = "power"
-local REMOVED       = "removed"
 local REFRESH       = "refresh"
+local REMOVED       = "removed"
 local VOLUME        = "volume"
 local VOLUME_STEP   = "volume_step"
 
@@ -141,17 +143,19 @@ local Parent = classify.single({
     _init = function(class, self, driver, device)
         classify.super(class):_init(self, driver, device)
         self.child = {}
+        self.online = false
         self.avr = denon.AVR(device.device_network_id, upnp,
             function(online)
+                self.online = online
                 self:notify_online(online)
                 for _, child in ipairs(self.child) do
                     child:notify_online(online)
                 end
             end,
-            function(zone, power, mute, volume, input)
+            function(zone, power, mute, volume, input, input_list)
                 local child = self.child[zone]
                 if child then
-                    child:notify_refresh(power, mute, volume, input)
+                    child:notify_refresh(power, mute, volume, input, input_list)
                 end
             end,
             1
@@ -188,6 +192,29 @@ local Parent = classify.single({
 }, Adapter)
 
 Child = classify.single({
+    input_map_st = {
+        AM          = nil,          -- not used/mapped
+        CD          = "CD",
+        FM          = "TUNER",
+        HDMI        = "MPLAY",
+        HDMI1       = "GAME",
+        HDMI2       = "BD",
+        HDMI3       = "DVD",
+        HDMI4       = "AUX2",
+        HDMI5       = "NETHOME",
+        HDMI6       = "SERVER",
+        digitalTv   = "TV",
+        USB         = "USB%2fIPOD",
+        YouTube     = nil,          -- not used/mapped
+        aux         = "AUX1",
+        bluetooth   = "BT",
+        digital     = "SAT%2fCBL",
+        melon       = "PHONO",
+        wifi        = "IRP",
+    },
+    input_map_avr = {},     -- inverse of input_map_st (built below)
+    input_list = {},        -- keys of input_map_st (built below)
+
     _init = function(class, self, driver, device)
         classify.super(class):_init(self, driver, device)
         local it = device.device_network_id:gmatch("%S+")
@@ -196,6 +223,8 @@ Child = classify.single({
         ready:acquire(parent_device_network_id, function(parent)
             self.parent = parent
             parent.child[self.zone] = self
+            self:notify_online(parent.online)
+            self.device:emit_event(capabilities.mediaInputSource.supportedInputSources(parent.input_list))
         end)
     end,
 
@@ -205,11 +234,7 @@ Child = classify.single({
         return Adapter.removed(self)
     end,
 
-    notify_refresh = function(self, power, mute, volume, input)
-        log.debug(LOG, self.device.device_network_id, "power"    , power)
-        log.debug(LOG, self.device.device_network_id, "mute"     , mute)
-        log.debug(LOG, self.device.device_network_id, "volume"   , volume)
-        log.debug(LOG, self.device.device_network_id, "input"    , input)
+    notify_refresh = function(self, power, mute, volume, input, input_list_avr)
         if power then
             self.device:emit_event(capabilities.switch.switch.on())
         else
@@ -225,30 +250,27 @@ Child = classify.single({
         else
             self.device:emit_event(capabilities.audioVolume.volume(volume))
         end
+        self.device:emit_event(capabilities.mediaInputSource.inputSource(self.input_map_avr[input]))
+        local input_list_st = {}
+        for _, input_avr in ipairs(input_list_avr) do
+            table.insert(input_list_st, self.input_map_avr[input_avr])
+        end
+        self.device:emit_event(capabilities.mediaInputSource.supportedInputSources(input_list_st))
     end,
 
     refresh = function(self)
-        self.parent.avr:refresh(self.zone)
+        local parent = self.parent
+        if parent then
+            parent.device.thread:queue_event(parent.avr.refresh, parent.avr, self.zone)
+        end
     end,
 
-    power = function(self, on)
-        self.parent.avr:command_power(self.zone, on)
-        self:refresh()
-    end,
-
-    mute = function(self, on)
-        self.parent.avr:command_mute(self.zone, on)
-        self:refresh()
-    end,
-
-    volume = function(self, volume)
-        self.parent.avr:command_volume(self.zone, volume)
-        self:refresh()
-    end,
-
-    volume_step = function(self, up)
-        self.parent.avr:command_volume_step(self.zone, up)
-        self:refresh()
+    command = function(self, command, ...)
+        local parent = self.parent
+        if parent then
+            parent.device.thread:queue_event(parent.avr["command_" .. command], parent.avr, self.zone, ...)
+            parent.device.thread:call_with_delay(2, function() self:refresh() end)
+        end
     end,
 
     create = function(driver, parent, label, zone)
@@ -263,36 +285,46 @@ Child = classify.single({
         [capabilities.refresh.ID] = Adapter.capability_handlers[capabilities.refresh.ID],
         [capabilities.switch.ID] = {
             [capabilities.switch.commands.on.NAME] = function(_, device)
-                Adapter.call(device, POWER, true)
+                Adapter.call(device, COMMAND, POWER, true)
             end,
             [capabilities.switch.commands.off.NAME] = function(_, device)
-                Adapter.call(device, POWER, false)
+                Adapter.call(device, COMMAND, POWER, false)
             end,
         },
         [capabilities.audioMute.ID] = {
             [capabilities.audioMute.commands.mute.NAME] = function(_, device)
-                Adapter.call(device, MUTE, true)
+                Adapter.call(device, COMMAND, MUTE, true)
             end,
             [capabilities.audioMute.commands.unmute.NAME] = function(_, device)
-                Adapter.call(device, MUTE, false)
+                Adapter.call(device, COMMAND, MUTE, false)
             end,
             [capabilities.audioMute.commands.setMute.NAME] = function(_, device, command)
-                Adapter.call(device. MUTE, command.args.mute == "muted")
+                Adapter.call(device. COMMAND, MUTE, command.args.mute == "muted")
             end,
         },
         [capabilities.audioVolume.ID] = {
             [capabilities.audioVolume.commands.setVolume.NAME] = function(_, device, command)
-                Adapter.call(device, VOLUME, command.args.volume)
+                Adapter.call(device, COMMAND, VOLUME, command.args.volume)
             end,
             [capabilities.audioVolume.commands.volumeUp.NAME] = function(_, device)
-                Adapter.call(device, VOLUME_STEP, true)
+                Adapter.call(device, COMMAND, VOLUME_STEP, true)
             end,
             [capabilities.audioVolume.commands.volumeDown.NAME] = function(_, device)
-                Adapter.call(device, VOLUME_STEP, false)
+                Adapter.call(device, COMMAND, VOLUME_STEP, false)
+            end,
+        },
+        [capabilities.mediaInputSource.ID] = {
+            [capabilities.mediaInputSource.commands.setInputSource.NAME] = function(_, device, command)
+                Adapter.call(device, COMMAND, INPUT, Child.input_map_st[command.args.mode])
             end,
         },
     },
 }, Adapter)
+
+for st, avr in pairs(Child.input_map_st) do
+    Child.input_map_avr[avr] = st
+    table.insert(Child.input_list, st)
+end
 
 Driver("denon-avr", {
     lan_info_changed_handler = function(_)
