@@ -97,11 +97,9 @@ denon = {
                         log.error(LOG, self.uuid, "find", "not", uuid)
                         return
                     end
+                    self.address = address
                     self:thread_send(true)    -- online
                     log.debug(LOG, self.uuid, "find", address, port, header.location, device.friendlyName)
-                    self.address = address
-                    self.location = header.location
-                    self.device = device
                     for _, service in ipairs(device.serviceList.service) do
                         local urn = UPnP.USN(service.serviceId).urn
                         if urn == RENDERING_CONTROL then
@@ -135,7 +133,6 @@ denon = {
                             pcall(self.notify_online, online)
                             if online then
                                 self.input_map, self.input_list = nil, nil
-                                self:refresh()
                             end
                         end
                     end

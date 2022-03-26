@@ -148,7 +148,7 @@ local Parent = classify.single({
             function(online)
                 self.online = online
                 self:notify_online(online)
-                for _, child in ipairs(self.child) do
+                for _, child in pairs(self.child) do
                     child:notify_online(online)
                 end
             end,
@@ -224,7 +224,6 @@ Child = classify.single({
             self.parent = parent
             parent.child[self.zone] = self
             self:notify_online(parent.online)
-            self.device:emit_event(capabilities.mediaInputSource.supportedInputSources(parent.input_list))
         end)
     end,
 
@@ -232,6 +231,11 @@ Child = classify.single({
         self.parent.child[self.zone] = nil
         self.parent = nil
         return Adapter.removed(self)
+    end,
+
+    notify_online = function(self, online)
+        Adapter.notify_online(self, online)
+        self:refresh()
     end,
 
     notify_refresh = function(self, power, mute, volume, input, input_list_avr)
@@ -260,14 +264,14 @@ Child = classify.single({
 
     refresh = function(self)
         local parent = self.parent
-        if parent then
+        if parent and parent.online then
             parent.device.thread:queue_event(parent.avr.refresh, parent.avr, self.zone)
         end
     end,
 
     command = function(self, command, ...)
         local parent = self.parent
-        if parent then
+        if parent and parent.online then
             parent.device.thread:queue_event(parent.avr["command_" .. command], parent.avr, self.zone, ...)
             parent.device.thread:call_with_delay(2, function() self:refresh() end)
         end

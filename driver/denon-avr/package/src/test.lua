@@ -24,6 +24,7 @@ cosock.spawn(function()
                     log.info("test", zone, "mute",      mute)
                     log.info("test", zone, "volume",    volume)
                     log.info("test", zone, "input",     input)
+                    log.info("test", zone, "list",      table.concat(input_list, "\t"))
                 end
             )
             avr_set[uuid] = avr
@@ -34,6 +35,12 @@ cosock.spawn(function()
     for _ = 1, 2 do
         pcall(discover.search, discover)
         cosock.socket.sleep(8)
+    end
+
+    local _, avr = next(avr_set)
+    while true do
+        avr:refresh("Zone2")
+        cosock.socket.sleep(0.1)
     end
 
     cosock.socket.sleep(1200)
