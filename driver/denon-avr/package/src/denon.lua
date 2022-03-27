@@ -14,7 +14,7 @@ local UPnP      = require "upnp"
 -- except RenderingControl, which will sendEvents only on its LastChange state variable.
 -- this may have Mute and/or Volume state but only for the Master channel (MainZone).
 -- for the MainZone only,
--- we are kept in sync with the Mute state but only
+-- we are kept in sync with the Mute state
 -- we are not kept in sync with the device's Volume state and its value may be wrong.
 -- reacting to the failure to renew a subscription allows us to rediscover the device.
 -- the device may simply be offline or it may have relocated (IP address changed).
