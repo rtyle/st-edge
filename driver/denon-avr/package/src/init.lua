@@ -250,11 +250,7 @@ Child = classify.single({
         else
             self.device:emit_event(capabilities.audioMute.mute.unmuted())
         end
-        if volume then
-            self.device:emit_event(capabilities.audioVolume.volume(volume))
-        else
-            self.device:emit_event(capabilities.audioVolume.volume(volume))
-        end
+        self.device:emit_event(capabilities.audioVolume.volume(math.ceil(volume)))
         self.device:emit_event(capabilities.mediaInputSource.inputSource(self.input_map_avr[input]))
         local input_list_st = {}
         for _, input_avr in ipairs(input_list_avr) do
