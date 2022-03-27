@@ -184,7 +184,7 @@ denon = {
             local status, _, body = table.unpack(response)
             local _, code, reason = table.unpack(status)
             if http.OK ~= code then
-                log.error(LOG, self.uuid, "command", zone, form, reason or code)
+                log.error(LOG, self.uuid, "command", zone, form, code, reason)
                 return
             end
             local result_ok, result = pcall(function()
@@ -246,11 +246,11 @@ denon = {
             local status, _, body = table.unpack(response)
             local _, code, reason = table.unpack(status)
             if http.OK ~= code then
-                log.error(LOG, self.uuid, "input", reason or code)
+                log.error(LOG, self.uuid, "input", code, reason)
                 return
             end
-            -- body is bad XHTML. parse with regex
-            local map = {   -- these sources cannot be renamed
+            -- static sources that cannot be renamed
+            local map = {
                 ["Tuner"]       = "TUNER",
                 ["Bluetooth"]   = "BT",
                 ["iPod/USB"]    = "USB%2fIPOD",
@@ -259,6 +259,7 @@ denon = {
                 ["IRADIO"]      = "IRP",
             }
             -- add unhidden, potentially renamed, names
+            -- body is bad XHTML. parse with regex
             for set, get in body:gmatch("name=['\"]textFuncRename(%w+)['\"]%s+value=['\"]([^'\"]*)['\"]") do
                 if set == "SATCBL" then
                     set = "SAT%2fCBL"
@@ -282,7 +283,7 @@ denon = {
                 return
             end
             local url = "http://" .. self.address .. "/goform/formMainZone_MainZoneXml.xml?ZoneName=" .. zone
-            log.debug(LOG, self.uuid, "refresh", zone, "curl -X GET " .. url)
+            log.debug(LOG, self.uuid, "refresh", zone, "curl " .. url)
             local response, response_error = http:transact(url, "GET", self.read_timeout)
             if response_error then
                 log.error(LOG, self.uuid, "refresh", zone, response_error)

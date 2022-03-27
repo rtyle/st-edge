@@ -152,10 +152,10 @@ local Parent = classify.single({
                     child:notify_online(online)
                 end
             end,
-            function(zone, power, mute, volume, input, input_list)
+            function(zone, power, mute, volume, input, input_list_avr)
                 local child = self.child[zone]
                 if child then
-                    child:notify_refresh(power, mute, volume, input, input_list)
+                    child:notify_refresh(power, mute, volume, input, input_list_avr)
                 end
             end,
             1
@@ -213,7 +213,7 @@ Child = classify.single({
         wifi        = "IRP",
     },
     input_map_avr = {},     -- inverse of input_map_st (built below)
-    input_list = {},        -- keys of input_map_st (built below)
+    input_list_st = {},     -- keys of input_map_st (built below)
 
     _init = function(class, self, driver, device)
         classify.super(class):_init(self, driver, device)
@@ -224,6 +224,7 @@ Child = classify.single({
             self.parent = parent
             parent.child[self.zone] = self
             self:notify_online(parent.online)
+            self.device:emit_event(capabilities.mediaInputSource.supportedInputSources(self.input_list_st))
         end)
     end,
 
@@ -327,7 +328,7 @@ Child = classify.single({
 
 for st, avr in pairs(Child.input_map_st) do
     Child.input_map_avr[avr] = st
-    table.insert(Child.input_list, st)
+    table.insert(Child.input_list_st, st)
 end
 
 Driver("denon-avr", {

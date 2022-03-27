@@ -1,0 +1,68 @@
+ADDRESS=192.168.1.221
+PORT=8080
+
+control() {
+
+length=$(echo -n "$2" | unix2dos | wc -c)
+
+request="POST /RenderingControl/ctrl HTTP/1.1
+Host: $ADDRESS:$PORT
+SOAPAction: \"urn:schemas-upnp-org:service:RenderingControl:1#$1\"
+Content-Type: text/xml; charset=\"utf-8\"
+Connection: close
+Content-Length: $length
+
+$2"
+
+echo
+echo "$request"
+echo
+echo -n "$request" | socat - TCP:$ADDRESS:$PORT,crnl
+echo
+}
+
+control GetMute '<?xml version="1.0"?>
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"
+s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+  <s:Body>
+    <u:GetMute xmlns:u="urn:schemas-upnp-org:service:RenderingControl:1">
+      <InstanceID>0</InstanceID>
+      <Channel>2</Channel>
+    </u:GetMute>
+  </s:Body>
+</s:Envelope>'
+
+control SetMute '<?xml version="1.0"?>
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"
+s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+  <s:Body>
+    <u:SetMute xmlns:u="urn:schemas-upnp-org:service:RenderingControl:1">
+      <InstanceID>0</InstanceID>
+      <Channel>2</Channel>
+      <DesiredMute>1</DesiredMute>
+    </u:SetMute>
+  </s:Body>
+</s:Envelope>'
+
+control GetVolume '<?xml version="1.0"?>
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"
+s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+  <s:Body>
+    <u:GetVolume xmlns:u="urn:schemas-upnp-org:service:RenderingControl:1">
+      <InstanceID>0</InstanceID>
+      <Channel>2</Channel>
+    </u:GetVolume>
+  </s:Body>
+</s:Envelope>'
+
+control SetVolume '<?xml version="1.0"?>
+<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"
+s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+  <s:Body>
+    <u:SetVolume xmlns:u="urn:schemas-upnp-org:service:RenderingControl:1">
+      <InstanceID>0</InstanceID>
+      <Channel>2</Channel>
+      <DesiredVolume>40</DesiredVolume>
+    </u:SetVolume>
+  </s:Body>
+</s:Envelope>'

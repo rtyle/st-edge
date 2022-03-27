@@ -1,0 +1,53 @@
+#!/bin/bash
+
+_ADDRESS=192.168.1.20
+_PORT=2222
+
+ADDRESS=192.168.1.221
+PORT=8080
+
+socat - TCP:$ADDRESS:$PORT,crnl <<EOF
+GET /description.xml HTTP/1.1
+HOST: $ADDRESS:$PORT
+CONNECTION: close
+
+EOF
+echo
+
+service() {
+echo
+echo \> $1
+echo
+
+socat - TCP:$ADDRESS:$PORT,crnl <<EOF
+GET /$1/desc.xml HTTP/1.1
+HOST: $ADDRESS:$PORT
+CONNECTION: close
+
+EOF
+echo
+
+socat TCP-LISTEN:$_PORT,reuseaddr - &
+server=$!
+sleep 1
+
+socat - TCP:$ADDRESS:$PORT,crnl <<EOF
+SUBSCRIBE /$1/evt HTTP/1.1
+HOST: $ADDRESS:$PORT
+CONNECTION: close
+CALLBACK: <http://$_ADDRESS:$_PORT/$1>
+NT: upnp:event
+
+EOF
+
+sleep 4
+kill $server 2>/dev/null
+
+echo
+echo \< $1
+echo
+}
+
+for SERVICE in RenderingControl ConnectionManager AVTransport; do
+	service $SERVICE
+done

@@ -1,0 +1,1049 @@
+HTTP/1.1 200 OK
+CONTENT-TYPE: text/xml;charset="utf-8"
+CONTENT-LENGTH: 3140
+
+<?xml version="1.0"?>
+<root
+  xmlns="urn:schemas-upnp-org:device-1-0"
+  xmlns:ms=" urn:microsoft-com:wmc-1-0"
+  xmlns:smsc="www.smsc.com"
+  xmlns:qq="http://www.tencent.com"
+  xmlns:pnpx="http://schemas.microsoft.com/windows/pnpx/2005/11"
+  xmlns:df="http://schemas.microsoft.com/windows/2008/09/devicefoundation">
+	<specVersion>
+		<major>1</major>
+		<minor>0</minor>
+	</specVersion>
+	<device>
+		<dlna:X_DLNADOC xmlns:dlna="urn:schemas-dlna-org:device-1-0">DMR-1.50</dlna:X_DLNADOC>
+		<pnpx:X_compatibleId>MS_DigitalMediaDeviceClass_DMR_V001
+				</pnpx:X_compatibleId>
+		<pnpx:X_deviceCategory>MediaDevices
+				</pnpx:X_deviceCategory>
+		<pnpx:X_hardwareId>VEN_0126&amp;DEV_0046&amp;REV_01
+				</pnpx:X_hardwareId>
+		<df:X_deviceCategory>Multimedia.DMR
+				</df:X_deviceCategory>
+		<deviceType>urn:schemas-upnp-org:device:MediaRenderer:1</deviceType>
+		<friendlyName>Denon AVR-X4100W</friendlyName>
+		<manufacturer>Denon</manufacturer>
+		<manufacturerURL>http://www.denon.com</manufacturerURL>
+		<modelDescription>AV SURROUND RECEIVER</modelDescription>
+		<modelName>*AVR-X4100W</modelName>
+		<modelNumber>X4100W</modelNumber>
+		<modelURL>http://www.denon.com</modelURL>
+		<serialNumber>0005CD4271EC</serialNumber>
+		<UDN>uuid:5f9ec1b3-ff59-19bb-8530-0005cd4271ec</UDN>
+		<UPC>123810928305</UPC>
+		<iconList>
+			<icon>
+				<mimetype>image/jpeg</mimetype>
+				<width>48</width>
+				<height>48</height>
+				<depth>24</depth>
+				<url>/BCO_device_sm_icon.jpg</url>
+			</icon>
+			<icon>
+				<mimetype>image/jpeg</mimetype>
+				<width>120</width>
+				<height>120</height>
+				<depth>24</depth>
+				<url>/BCO_device_lrg_icon.jpg</url>
+			</icon>
+			<icon>
+				<mimetype>image/png</mimetype>
+				<width>48</width>
+				<height>48</height>
+				<depth>24</depth>
+				<url>/BCO_device_sm_icon.png</url>
+			</icon>
+			<icon>
+				<mimetype>image/png</mimetype>
+				<width>120</width>
+				<height>120</height>
+				<depth>24</depth>
+				<url>/BCO_device_lrg_icon.png</url>
+			</icon>
+		</iconList>
+		<serviceList>
+			<service>
+				<serviceType>urn:schemas-upnp-org:service:RenderingControl:1</serviceType>
+				<serviceId>urn:upnp-org:serviceId:RenderingControl</serviceId>
+				<SCPDURL>/RenderingControl/desc.xml</SCPDURL>
+				<controlURL>/RenderingControl/ctrl</controlURL>
+				<eventSubURL>/RenderingControl/evt</eventSubURL>
+			</service>
+			<service>
+				<serviceType>urn:schemas-upnp-org:service:ConnectionManager:1</serviceType>
+				<serviceId>urn:upnp-org:serviceId:ConnectionManager</serviceId>
+				<SCPDURL>/ConnectionManager/desc.xml</SCPDURL>
+				<controlURL>/ConnectionManager/ctrl</controlURL>
+				<eventSubURL>/ConnectionManager/evt</eventSubURL>
+			</service>
+			<service>
+				<serviceType>urn:schemas-upnp-org:service:AVTransport:1</serviceType>
+				<serviceId>urn:upnp-org:serviceId:AVTransport</serviceId>
+				<SCPDURL>/AVTransport/desc.xml</SCPDURL>
+				<controlURL>/AVTransport/ctrl</controlURL>
+				<eventSubURL>/AVTransport/evt</eventSubURL>
+			</service>
+		</serviceList>
+		<presentationURL>http://192.168.1.221</presentationURL>
+	</device>
+</root>
+
+> RenderingControl
+
+HTTP/1.1 200 OK
+CONTENT-TYPE: text/xml;charset="utf-8"
+CONTENT-LENGTH: 4526
+
+<?xml version="1.0"?>
+<scpd
+  xmlns="urn:schemas-upnp-org:service-1-0">
+	<specVersion>
+		<major>1</major>
+		<minor>0</minor>
+	</specVersion>
+	<actionList>
+		<action>
+			<name>ListPresets</name>
+			<argumentList>
+				<argument>
+					<name>InstanceID</name>
+					<direction>in</direction>
+					<relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>CurrentPresetNameList</name>
+					<direction>out</direction>
+					<relatedStateVariable>PresetNameList</relatedStateVariable>
+				</argument>
+			</argumentList>
+		</action>
+		<action>
+			<name>SelectPreset</name>
+			<argumentList>
+				<argument>
+					<name>InstanceID</name>
+					<direction>in</direction>
+					<relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>PresetName</name>
+					<direction>in</direction>
+					<relatedStateVariable>A_ARG_TYPE_PresetName</relatedStateVariable>
+				</argument>
+			</argumentList>
+		</action>
+		<action>
+			<name>GetMute</name>
+			<argumentList>
+				<argument>
+					<name>InstanceID</name>
+					<direction>in</direction>
+					<relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>Channel</name>
+					<direction>in</direction>
+					<relatedStateVariable>A_ARG_TYPE_Channel</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>CurrentMute</name>
+					<direction>out</direction>
+					<relatedStateVariable>Mute</relatedStateVariable>
+				</argument>
+			</argumentList>
+		</action>
+		<action>
+			<name>SetMute</name>
+			<argumentList>
+				<argument>
+					<name>InstanceID</name>
+					<direction>in</direction>
+					<relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>Channel</name>
+					<direction>in</direction>
+					<relatedStateVariable>A_ARG_TYPE_Channel</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>DesiredMute</name>
+					<direction>in</direction>
+					<relatedStateVariable>Mute</relatedStateVariable>
+				</argument>
+			</argumentList>
+		</action>
+		<action>
+			<name>GetVolume</name>
+			<argumentList>
+				<argument>
+					<name>InstanceID</name>
+					<direction>in</direction>
+					<relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>Channel</name>
+					<direction>in</direction>
+					<relatedStateVariable>A_ARG_TYPE_Channel</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>CurrentVolume</name>
+					<direction>out</direction>
+					<relatedStateVariable>Volume</relatedStateVariable>
+				</argument>
+			</argumentList>
+		</action>
+		<action>
+			<name>SetVolume</name>
+			<argumentList>
+				<argument>
+					<name>InstanceID</name>
+					<direction>in</direction>
+					<relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>Channel</name>
+					<direction>in</direction>
+					<relatedStateVariable>A_ARG_TYPE_Channel</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>DesiredVolume</name>
+					<direction>in</direction>
+					<relatedStateVariable>Volume</relatedStateVariable>
+				</argument>
+			</argumentList>
+		</action>
+	</actionList>
+	<serviceStateTable>
+		<stateVariable sendEvents="no">
+			<name>PresetNameList</name>
+			<dataType>string</dataType>
+		</stateVariable>
+		<stateVariable sendEvents="yes">
+			<name>LastChange</name>
+			<dataType>string</dataType>
+		</stateVariable>
+		<stateVariable sendEvents="no">
+			<name>Mute</name>
+			<dataType>boolean</dataType>
+		</stateVariable>
+		<stateVariable sendEvents="no">
+			<name>Volume</name>
+			<dataType>ui2</dataType>
+			<allowedValueRange>
+				<minimum>0</minimum>
+				<maximum>100</maximum>
+				<step>1</step>
+			</allowedValueRange>
+		</stateVariable>
+		<stateVariable sendEvents="no">
+			<name>A_ARG_TYPE_Channel</name>
+			<dataType>string</dataType>
+			<allowedValueList>
+				<allowedValue>Master</allowedValue>
+			</allowedValueList>
+		</stateVariable>
+		<stateVariable sendEvents="no">
+			<name>A_ARG_TYPE_InstanceID</name>
+			<dataType>ui4</dataType>
+		</stateVariable>
+		<stateVariable sendEvents="no">
+			<name>A_ARG_TYPE_PresetName</name>
+			<dataType>string</dataType>
+			<allowedValueList>
+				<allowedValue>FactoryDefaults</allowedValue>
+			</allowedValueList>
+		</stateVariable>
+	</serviceStateTable>
+</scpd>
+HTTP/1.1 200 OK
+CONTENT-LENGTH: 0
+SERVER: KnOS/3.2 UPnP/1.0 DMP/3.5
+SID: uuid:fcdc524d-51db-1536-a044-42c35e9679af
+TIMEOUT: Second-300
+
+NOTIFY /RenderingControl HTTP/1.1
+HOST: 192.168.1.20:2222
+CONTENT-TYPE: text/xml;charset="utf-8"
+CONTENT-LENGTH: 503
+NT: upnp:event
+NTS: upnp:propchange
+SID: uuid:fcdc524d-51db-1536-a044-42c35e9679af
+SEQ: 0
+
+<e:propertyset xmlns:e="urn:schemas-upnp-org:event-1-0">
+  <e:property>
+    <LastChange>&lt;Event xmlns=&quot;urn:schemas-upnp-org:metadata-1-0/RCS/&quot;&gt;
+  &lt;InstanceID val=&quot;0&quot;&gt;
+    &lt;PresetNameList val=&quot;FactoryDefaults, InstallationDefaults&quot;/&gt;
+    &lt;Mute channel=&quot;Master&quot; val=&quot;0&quot;/&gt;
+    &lt;Volume channel=&quot;Master&quot; val=&quot;50&quot;/&gt;
+  &lt;/InstanceID&gt;
+&lt;/Event&gt;</LastChange>
+  </e:property>
+</e:propertyset>
+
+< RenderingControl
+
+
+> ConnectionManager
+
+HTTP/1.1 200 OK
+CONTENT-TYPE: text/xml;charset="utf-8"
+CONTENT-LENGTH: 4085
+
+<?xml version="1.0"?>
+<scpd
+  xmlns="urn:schemas-upnp-org:service-1-0">
+	<specVersion>
+		<major>1</major>
+		<minor>0</minor>
+	</specVersion>
+	<actionList>
+		<action>
+			<name>GetProtocolInfo</name>
+			<argumentList>
+				<argument>
+					<name>Source</name>
+					<direction>out</direction>
+					<relatedStateVariable>SourceProtocolInfo</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>Sink</name>
+					<direction>out</direction>
+					<relatedStateVariable>SinkProtocolInfo</relatedStateVariable>
+				</argument>
+			</argumentList>
+		</action>
+		<action>
+			<name>GetCurrentConnectionIDs</name>
+			<argumentList>
+				<argument>
+					<name>ConnectionIDs</name>
+					<direction>out</direction>
+					<relatedStateVariable>CurrentConnectionIDs</relatedStateVariable>
+				</argument>
+			</argumentList>
+		</action>
+		<action>
+			<name>GetCurrentConnectionInfo</name>
+			<argumentList>
+				<argument>
+					<name>ConnectionID</name>
+					<direction>in</direction>
+					<relatedStateVariable>A_ARG_TYPE_ConnectionID</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>RcsID</name>
+					<direction>out</direction>
+					<relatedStateVariable>A_ARG_TYPE_RcsID</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>AVTransportID</name>
+					<direction>out</direction>
+					<relatedStateVariable>A_ARG_TYPE_AVTransportID</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>ProtocolInfo</name>
+					<direction>out</direction>
+					<relatedStateVariable>A_ARG_TYPE_ProtocolInfo</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>PeerConnectionManager</name>
+					<direction>out</direction>
+					<relatedStateVariable>A_ARG_TYPE_ConnectionManager</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>PeerConnectionID</name>
+					<direction>out</direction>
+					<relatedStateVariable>A_ARG_TYPE_ConnectionID</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>Direction</name>
+					<direction>out</direction>
+					<relatedStateVariable>A_ARG_TYPE_Direction</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>Status</name>
+					<direction>out</direction>
+					<relatedStateVariable>A_ARG_TYPE_ConnectionStatus</relatedStateVariable>
+				</argument>
+			</argumentList>
+		</action>
+	</actionList>
+	<serviceStateTable>
+		<stateVariable sendEvents="yes">
+			<name>SourceProtocolInfo</name>
+			<dataType>string</dataType>
+		</stateVariable>
+		<stateVariable sendEvents="yes">
+			<name>SinkProtocolInfo</name>
+			<dataType>string</dataType>
+		</stateVariable>
+		<stateVariable sendEvents="yes">
+			<name>CurrentConnectionIDs</name>
+			<dataType>string</dataType>
+		</stateVariable>
+		<stateVariable sendEvents="no">
+			<name>A_ARG_TYPE_ConnectionStatus</name>
+			<dataType>string</dataType>
+			<allowedValueList>
+				<allowedValue>OK</allowedValue>
+				<allowedValue>ContentFormatMismatch</allowedValue>
+				<allowedValue>InsufficientBandwidth</allowedValue>
+				<allowedValue>UnreliableChannel</allowedValue>
+				<allowedValue>Unknown</allowedValue>
+			</allowedValueList>
+		</stateVariable>
+		<stateVariable sendEvents="no">
+			<name>A_ARG_TYPE_ConnectionManager</name>
+			<dataType>string</dataType>
+		</stateVariable>
+		<stateVariable sendEvents="no">
+			<name>A_ARG_TYPE_Direction</name>
+			<dataType>string</dataType>
+			<allowedValueList>
+				<allowedValue>Input</allowedValue>
+				<allowedValue>Output</allowedValue>
+			</allowedValueList>
+		</stateVariable>
+		<stateVariable sendEvents="no">
+			<name>A_ARG_TYPE_ProtocolInfo</name>
+			<dataType>string</dataType>
+		</stateVariable>
+		<stateVariable sendEvents="no">
+			<name>A_ARG_TYPE_ConnectionID</name>
+			<dataType>i4</dataType>
+		</stateVariable>
+		<stateVariable sendEvents="no">
+			<name>A_ARG_TYPE_AVTransportID</name>
+			<dataType>i4</dataType>
+		</stateVariable>
+		<stateVariable sendEvents="no">
+			<name>A_ARG_TYPE_RcsID</name>
+			<dataType>i4</dataType>
+		</stateVariable>
+	</serviceStateTable>
+</scpd>
+HTTP/1.1 200 OK
+CONTENT-LENGTH: 0
+SERVER: KnOS/3.2 UPnP/1.0 DMP/3.5
+SID: uuid:56f9af54-75a5-12e6-9a76-a4d79c1fbbf9
+TIMEOUT: Second-300
+
+NOTIFY /ConnectionManager HTTP/1.1
+HOST: 192.168.1.20:2222
+CONTENT-TYPE: text/xml;charset="utf-8"
+CONTENT-LENGTH: 1400
+NT: upnp:event
+NTS: upnp:propchange
+SID: uuid:56f9af54-75a5-12e6-9a76-a4d79c1fbbf9
+SEQ: 0
+
+<e:propertyset xmlns:e="urn:schemas-upnp-org:event-1-0">
+  <e:property>
+    <SourceProtocolInfo></SourceProtocolInfo>
+  </e:property>
+  <e:property>
+    <SinkProtocolInfo>http-get:*:audio/L16;rate=44100;channels=1:DLNA.ORG_PN=LPCM,http-get:*:audio/L16;rate=44100;channels=2:DLNA.ORG_PN=LPCM,http-get:*:audio/L16;rate=48000;channels=1:DLNA.ORG_PN=LPCM,http-get:*:audio/L16;rate=48000;channels=2:DLNA.ORG_PN=LPCM,http-get:*:audio/mpeg:DLNA.ORG_PN=MP3,http-get:*:audio/x-ms-wma:DLNA.ORG_PN=WMABASE,http-get:*:audio/x-ms-wma:DLNA.ORG_PN=WMAFULL,http-get:*:audio/mp4:DLNA.ORG_PN=AAC_ISO,http-get:*:audio/mp4:DLNA.ORG_PN=AAC_ISO_320,http-get:*:audio/3gpp:DLNA.ORG_PN=AAC_ISO,http-get:*:audio/3gpp:DLNA.ORG_PN=AAC_ISO_320,http-get:*:audio/vnd.dlna.adts:DLNA.ORG_PN=AAC_ADTS,http-get:*:audio/vnd.dlna.adts:DLNA.ORG_PN=AAC_ADTS_320,http-get:*:image/jpeg:DLNA.ORG_PN=JPEG_LRG,http-get:*:image/jpeg:DLNA.ORG_PN=JPEG_MED,http-get:*:image/jpeg:DLNA.ORG_PN=JPEG_SM,http-wavetunes:*:audio/x-ms-wma:*,http-get:*:audio/wav:*,http-get:*:audio/x-wav:*,http-get:*:audio/flac:*,http-get:*:audio/x-flac:*,http-get:*:audio/x-m4a:*,http-get:*:audio/x-mp4:*,http-get:*:audio/aiff:*,http-get:*:audio/x-aiff:*,http-get:*:audio/dsd:*,http-get:*:audio/x-dsd:*,http-get:*:image/jpeg:*</SinkProtocolInfo>
+  </e:property>
+  <e:property>
+    <CurrentConnectionIDs>0</CurrentConnectionIDs>
+  </e:property>
+</e:propertyset>
+
+< ConnectionManager
+
+
+> AVTransport
+
+HTTP/1.1 200 OK
+CONTENT-TYPE: text/xml;charset="utf-8"
+CONTENT-LENGTH: 16287
+
+<?xml version="1.0"?>
+<scpd
+  xmlns="urn:schemas-upnp-org:service-1-0">
+	<specVersion>
+		<major>1</major>
+		<minor>0</minor>
+	</specVersion>
+	<actionList>
+		<action>
+			<name>SetAVTransportURI</name>
+			<argumentList>
+				<argument>
+					<name>InstanceID</name>
+					<direction>in</direction>
+					<relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>CurrentURI</name>
+					<direction>in</direction>
+					<relatedStateVariable>AVTransportURI</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>CurrentURIMetaData</name>
+					<direction>in</direction>
+					<relatedStateVariable>AVTransportURIMetaData</relatedStateVariable>
+				</argument>
+			</argumentList>
+		</action>
+		<action>
+			<name>SetNextAVTransportURI</name>
+			<argumentList>
+				<argument>
+					<name>InstanceID</name>
+					<direction>in</direction>
+					<relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>NextURI</name>
+					<direction>in</direction>
+					<relatedStateVariable>NextAVTransportURI</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>NextURIMetaData</name>
+					<direction>in</direction>
+					<relatedStateVariable>NextAVTransportURIMetaData</relatedStateVariable>
+				</argument>
+			</argumentList>
+		</action>
+		<action>
+			<name>GetMediaInfo</name>
+			<argumentList>
+				<argument>
+					<name>InstanceID</name>
+					<direction>in</direction>
+					<relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>NrTracks</name>
+					<direction>out</direction>
+					<relatedStateVariable>NumberOfTracks</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>MediaDuration</name>
+					<direction>out</direction>
+					<relatedStateVariable>CurrentMediaDuration</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>CurrentURI</name>
+					<direction>out</direction>
+					<relatedStateVariable>AVTransportURI</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>CurrentURIMetaData</name>
+					<direction>out</direction>
+					<relatedStateVariable>AVTransportURIMetaData</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>NextURI</name>
+					<direction>out</direction>
+					<relatedStateVariable>NextAVTransportURI</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>NextURIMetaData</name>
+					<direction>out</direction>
+					<relatedStateVariable>NextAVTransportURIMetaData</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>PlayMedium</name>
+					<direction>out</direction>
+					<relatedStateVariable>PlaybackStorageMedium</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>RecordMedium</name>
+					<direction>out</direction>
+					<relatedStateVariable>RecordStorageMedium</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>WriteStatus</name>
+					<direction>out</direction>
+					<relatedStateVariable>RecordMediumWriteStatus</relatedStateVariable>
+				</argument>
+			</argumentList>
+		</action>
+		<action>
+			<name>GetTransportInfo</name>
+			<argumentList>
+				<argument>
+					<name>InstanceID</name>
+					<direction>in</direction>
+					<relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>CurrentTransportState</name>
+					<direction>out</direction>
+					<relatedStateVariable>TransportState</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>CurrentTransportStatus</name>
+					<direction>out</direction>
+					<relatedStateVariable>TransportStatus</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>CurrentSpeed</name>
+					<direction>out</direction>
+					<relatedStateVariable>TransportPlaySpeed</relatedStateVariable>
+				</argument>
+			</argumentList>
+		</action>
+		<action>
+			<name>GetPositionInfo</name>
+			<argumentList>
+				<argument>
+					<name>InstanceID</name>
+					<direction>in</direction>
+					<relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>Track</name>
+					<direction>out</direction>
+					<relatedStateVariable>CurrentTrack</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>TrackDuration</name>
+					<direction>out</direction>
+					<relatedStateVariable>CurrentTrackDuration</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>TrackMetaData</name>
+					<direction>out</direction>
+					<relatedStateVariable>CurrentTrackMetaData</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>TrackURI</name>
+					<direction>out</direction>
+					<relatedStateVariable>CurrentTrackURI</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>RelTime</name>
+					<direction>out</direction>
+					<relatedStateVariable>RelativeTimePosition</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>AbsTime</name>
+					<direction>out</direction>
+					<relatedStateVariable>AbsoluteTimePosition</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>RelCount</name>
+					<direction>out</direction>
+					<relatedStateVariable>RelativeCounterPosition</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>AbsCount</name>
+					<direction>out</direction>
+					<relatedStateVariable>AbsoluteCounterPosition</relatedStateVariable>
+				</argument>
+			</argumentList>
+		</action>
+		<action>
+			<name>GetDeviceCapabilities</name>
+			<argumentList>
+				<argument>
+					<name>InstanceID</name>
+					<direction>in</direction>
+					<relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>PlayMedia</name>
+					<direction>out</direction>
+					<relatedStateVariable>PossiblePlaybackStorageMedia</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>RecMedia</name>
+					<direction>out</direction>
+					<relatedStateVariable>PossibleRecordStorageMedia</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>RecQualityModes</name>
+					<direction>out</direction>
+					<relatedStateVariable>PossibleRecordQualityModes</relatedStateVariable>
+				</argument>
+			</argumentList>
+		</action>
+		<action>
+			<name>GetTransportSettings</name>
+			<argumentList>
+				<argument>
+					<name>InstanceID</name>
+					<direction>in</direction>
+					<relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>PlayMode</name>
+					<direction>out</direction>
+					<relatedStateVariable>CurrentPlayMode</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>RecQualityMode</name>
+					<direction>out</direction>
+					<relatedStateVariable>CurrentRecordQualityMode</relatedStateVariable>
+				</argument>
+			</argumentList>
+		</action>
+		<action>
+			<name>Stop</name>
+			<argumentList>
+				<argument>
+					<name>InstanceID</name>
+					<direction>in</direction>
+					<relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
+				</argument>
+			</argumentList>
+		</action>
+		<action>
+			<name>Play</name>
+			<argumentList>
+				<argument>
+					<name>InstanceID</name>
+					<direction>in</direction>
+					<relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>Speed</name>
+					<direction>in</direction>
+					<relatedStateVariable>TransportPlaySpeed</relatedStateVariable>
+				</argument>
+			</argumentList>
+		</action>
+		<action>
+			<name>Pause</name>
+			<argumentList>
+				<argument>
+					<name>InstanceID</name>
+					<direction>in</direction>
+					<relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
+				</argument>
+			</argumentList>
+		</action>
+		<action>
+			<name>Seek</name>
+			<argumentList>
+				<argument>
+					<name>InstanceID</name>
+					<direction>in</direction>
+					<relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>Unit</name>
+					<direction>in</direction>
+					<relatedStateVariable>A_ARG_TYPE_SeekMode</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>Target</name>
+					<direction>in</direction>
+					<relatedStateVariable>A_ARG_TYPE_SeekTarget</relatedStateVariable>
+				</argument>
+			</argumentList>
+		</action>
+		<action>
+			<name>Next</name>
+			<argumentList>
+				<argument>
+					<name>InstanceID</name>
+					<direction>in</direction>
+					<relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
+				</argument>
+			</argumentList>
+		</action>
+		<action>
+			<name>Previous</name>
+			<argumentList>
+				<argument>
+					<name>InstanceID</name>
+					<direction>in</direction>
+					<relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
+				</argument>
+			</argumentList>
+		</action>
+		<action>
+			<name>SetPlayMode</name>
+			<argumentList>
+				<argument>
+					<name>InstanceID</name>
+					<direction>in</direction>
+					<relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>NewPlayMode</name>
+					<direction>in</direction>
+					<relatedStateVariable>CurrentPlayMode</relatedStateVariable>
+				</argument>
+			</argumentList>
+		</action>
+		<action>
+			<name>GetCurrentTransportActions</name>
+			<argumentList>
+				<argument>
+					<name>InstanceID</name>
+					<direction>in</direction>
+					<relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>Actions</name>
+					<direction>out</direction>
+					<relatedStateVariable>CurrentTransportActions</relatedStateVariable>
+				</argument>
+			</argumentList>
+		</action>
+		<action>
+			<name>X_DLNA_GetBytePositionInfo</name>
+			<argumentList>
+				<argument>
+					<name>InstanceID</name>
+					<direction>in</direction>
+					<relatedStateVariable>A_ARG_TYPE_InstanceID</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>TrackSize</name>
+					<direction>out</direction>
+					<relatedStateVariable>X_DLNA_CurrentTrackSize</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>RelByte</name>
+					<direction>out</direction>
+					<relatedStateVariable>X_DLNA_RelativeBytePosition</relatedStateVariable>
+				</argument>
+				<argument>
+					<name>AbsByte</name>
+					<direction>out</direction>
+					<relatedStateVariable>X_DLNA_AbsoluteBytePosition</relatedStateVariable>
+				</argument>
+			</argumentList>
+		</action>
+	</actionList>
+	<serviceStateTable>
+		<stateVariable sendEvents="yes">
+			<name>LastChange</name>
+			<dataType>string</dataType>
+		</stateVariable>
+		<stateVariable sendEvents="no">
+			<name>TransportState</name>
+			<dataType>string</dataType>
+			<allowedValueList>
+				<allowedValue>STOPPED</allowedValue>
+				<allowedValue>PLAYING</allowedValue>
+				<allowedValue>PAUSED_PLAYBACK</allowedValue>
+				<allowedValue>TRANSITIONING</allowedValue>
+				<allowedValue>NO_MEDIA_PRESENT</allowedValue>
+			</allowedValueList>
+		</stateVariable>
+		<stateVariable sendEvents="no">
+			<name>TransportStatus</name>
+			<dataType>string</dataType>
+			<allowedValueList>
+				<allowedValue>OK</allowedValue>
+				<allowedValue>ERROR_OCCURRED</allowedValue>
+			</allowedValueList>
+		</stateVariable>
+		<stateVariable sendEvents="no">
+			<name>PlaybackStorageMedium</name>
+			<dataType>string</dataType>
+			<allowedValueList>
+				<allowedValue>NETWORK</allowedValue>
+			</allowedValueList>
+		</stateVariable>
+		<stateVariable sendEvents="no">
+			<name>RecordStorageMedium</name>
+			<dataType>string</dataType>
+			<allowedValueList>
+				<allowedValue>NOT_IMPLEMENTED</allowedValue>
+			</allowedValueList>
+		</stateVariable>
+		<stateVariable sendEvents="no">
+			<name>PossiblePlaybackStorageMedia</name>
+			<dataType>string</dataType>
+		</stateVariable>
+		<stateVariable sendEvents="no">
+			<name>PossibleRecordStorageMedia</name>
+			<dataType>string</dataType>
+		</stateVariable>
+		<stateVariable sendEvents="no">
+			<name>CurrentPlayMode</name>
+			<dataType>string</dataType>
+			<defaultValue>NORMAL</defaultValue>
+			<allowedValueList>
+				<allowedValue>NORMAL</allowedValue>
+				<allowedValue>SHUFFLE</allowedValue>
+				<allowedValue>REPEAT_ONE</allowedValue>
+				<allowedValue>REPEAT_ALL</allowedValue>
+			</allowedValueList>
+		</stateVariable>
+		<stateVariable sendEvents="no">
+			<name>TransportPlaySpeed</name>
+			<dataType>string</dataType>
+			<allowedValueList>
+				<allowedValue>1</allowedValue>
+			</allowedValueList>
+		</stateVariable>
+		<stateVariable sendEvents="no">
+			<name>RecordMediumWriteStatus</name>
+			<dataType>string</dataType>
+			<allowedValueList>
+				<allowedValue>NOT_IMPLEMENTED</allowedValue>
+			</allowedValueList>
+		</stateVariable>
+		<stateVariable sendEvents="no">
+			<name>CurrentRecordQualityMode</name>
+			<dataType>string</dataType>
+			<allowedValueList>
+				<allowedValue>NOT_IMPLEMENTED</allowedValue>
+			</allowedValueList>
+		</stateVariable>
+		<stateVariable sendEvents="no">
+			<name>PossibleRecordQualityModes</name>
+			<dataType>string</dataType>
+		</stateVariable>
+		<stateVariable sendEvents="no">
+			<name>NumberOfTracks</name>
+			<dataType>ui4</dataType>
+			<allowedValueRange>
+				<minimum>0</minimum>
+				<maximum>1</maximum>
+			</allowedValueRange>
+		</stateVariable>
+		<stateVariable sendEvents="no">
+			<name>CurrentTrack</name>
+			<dataType>ui4</dataType>
+			<allowedValueRange>
+				<minimum>0</minimum>
+				<maximum>1</maximum>
+				<step>1</step>
+			</allowedValueRange>
+		</stateVariable>
+		<stateVariable sendEvents="no">
+			<name>CurrentTrackDuration</name>
+			<dataType>string</dataType>
+		</stateVariable>
+		<stateVariable sendEvents="no">
+			<name>CurrentMediaDuration</name>
+			<dataType>string</dataType>
+		</stateVariable>
+		<stateVariable sendEvents="no">
+			<name>CurrentTrackMetaData</name>
+			<dataType>string</dataType>
+		</stateVariable>
+		<stateVariable sendEvents="no">
+			<name>CurrentTrackURI</name>
+			<dataType>string</dataType>
+		</stateVariable>
+		<stateVariable sendEvents="no">
+			<name>AVTransportURI</name>
+			<dataType>string</dataType>
+		</stateVariable>
+		<stateVariable sendEvents="no">
+			<name>AVTransportURIMetaData</name>
+			<dataType>string</dataType>
+		</stateVariable>
+		<stateVariable sendEvents="no">
+			<name>NextAVTransportURI</name>
+			<dataType>string</dataType>
+		</stateVariable>
+		<stateVariable sendEvents="no">
+			<name>NextAVTransportURIMetaData</name>
+			<dataType>string</dataType>
+		</stateVariable>
+		<stateVariable sendEvents="no">
+			<name>RelativeTimePosition</name>
+			<dataType>string</dataType>
+		</stateVariable>
+		<stateVariable sendEvents="no">
+			<name>AbsoluteTimePosition</name>
+			<dataType>string</dataType>
+		</stateVariable>
+		<stateVariable sendEvents="no">
+			<name>RelativeCounterPosition</name>
+			<dataType>i4</dataType>
+		</stateVariable>
+		<stateVariable sendEvents="no">
+			<name>AbsoluteCounterPosition</name>
+			<dataType>i4</dataType>
+		</stateVariable>
+		<stateVariable sendEvents="no">
+			<name>CurrentTransportActions</name>
+			<dataType>string</dataType>
+		</stateVariable>
+		<stateVariable sendEvents="no">
+			<name>A_ARG_TYPE_SeekMode</name>
+			<dataType>string</dataType>
+			<allowedValueList>
+				<allowedValue>TRACK_NR</allowedValue>
+				<allowedValue>REL_TIME</allowedValue>
+			</allowedValueList>
+		</stateVariable>
+		<stateVariable sendEvents="no">
+			<name>A_ARG_TYPE_SeekTarget</name>
+			<dataType>string</dataType>
+		</stateVariable>
+		<stateVariable sendEvents="no">
+			<name>A_ARG_TYPE_InstanceID</name>
+			<dataType>ui4</dataType>
+		</stateVariable>
+		<stateVariable sendEvents="no">
+			<name>X_DLNA_RelativeBytePosition</name>
+			<dataType>string</dataType>
+		</stateVariable>
+		<stateVariable sendEvents="no">
+			<name>X_DLNA_AbsoluteBytePosition</name>
+			<dataType>string</dataType>
+		</stateVariable>
+		<stateVariable sendEvents="no">
+			<name>X_DLNA_CurrentTrackSize</name>
+			<dataType>string</dataType>
+		</stateVariable>
+	</serviceStateTable>
+</scpd>
+HTTP/1.1 200 OK
+CONTENT-LENGTH: 0
+SERVER: KnOS/3.2 UPnP/1.0 DMP/3.5
+SID: uuid:bbfcb08e-78c1-1207-a94e-c3390e5b2840
+TIMEOUT: Second-300
+
+NOTIFY /AVTransport HTTP/1.1
+HOST: 192.168.1.20:2222
+CONTENT-TYPE: text/xml;charset="utf-8"
+CONTENT-LENGTH: 1558
+NT: upnp:event
+NTS: upnp:propchange
+SID: uuid:bbfcb08e-78c1-1207-a94e-c3390e5b2840
+SEQ: 0
+
+<e:propertyset xmlns:e="urn:schemas-upnp-org:event-1-0">
+  <e:property>
+    <LastChange>&lt;Event xmlns=&quot;urn:schemas-upnp-org:metadata-1-0/AVT/&quot;&gt;
+  &lt;InstanceID val=&quot;0&quot;&gt;
+    &lt;TransportState val=&quot;NO_MEDIA_PRESENT&quot;/&gt;
+    &lt;TransportStatus val=&quot;OK&quot;/&gt;
+    &lt;PlaybackStorageMedium val=&quot;NONE&quot;/&gt;
+    &lt;RecordStorageMedium val=&quot;NOT_IMPLEMENTED&quot;/&gt;
+    &lt;PossiblePlaybackStorageMedia val=&quot;NONE,NETWORK&quot;/&gt;
+    &lt;PossibleRecordStorageMedia val=&quot;NOT_IMPLEMENTED&quot;/&gt;
+    &lt;CurrentPlayMode val=&quot;NORMAL&quot;/&gt;
+    &lt;TransportPlaySpeed val=&quot;1&quot;/&gt;
+    &lt;RecordMediumWriteStatus val=&quot;NOT_IMPLEMENTED&quot;/&gt;
+    &lt;CurrentRecordQualityMode val=&quot;NOT_IMPLEMENTED&quot;/&gt;
+    &lt;PossibleRecordQualityModes val=&quot;NOT_IMPLEMENTED&quot;/&gt;
+    &lt;NumberOfTracks val=&quot;0&quot;/&gt;
+    &lt;CurrentTrack val=&quot;0&quot;/&gt;
+    &lt;CurrentTrackDuration val=&quot;0:00:00&quot;/&gt;
+    &lt;CurrentMediaDuration val=&quot;0:00:00&quot;/&gt;
+    &lt;CurrentTrackMetaData val=&quot;&quot;/&gt;
+    &lt;CurrentTrackURI val=&quot;&quot;/&gt;
+    &lt;AVTransportURI val=&quot;&quot;/&gt;
+    &lt;AVTransportURIMetaData val=&quot;&quot;/&gt;
+    &lt;NextAVTransportURI val=&quot;&quot;/&gt;
+    &lt;NextAVTransportURIMetaData val=&quot;&quot;/&gt;
+    &lt;CurrentTransportActions val=&quot;&quot;/&gt;
+  &lt;/InstanceID&gt;
+&lt;/Event&gt;</LastChange>
+  </e:property>
+</e:propertyset>
+
+< AVTransport
+
