@@ -37,27 +37,6 @@ denon = {
             "Zone3",
         },
 
-        INPUT = {   -- default names by API id
-            -- these may be renamed and have hardware inputs assigned to them
-            CBLSAT  = 'CBL/SAT',
-            DVD     = 'DVD',
-            BD      = 'Blu-ray',
-            GAME    = 'Game',
-            MPLAY   = 'Media Player',
-            TV      = 'TV Audio',
-            AUX1    = 'AUX1',
-            AUX2    = 'AUX2',
-            CD      = 'CD',
-            PHONO   = 'Phono',
-            -- these sources cannot be renamed and require further configuration
-            TUNER   = 'Tuner',
-            BT      = 'Bluetooth',
-            IPOD    = 'iPod/USB',
-            NETHOME = 'Online Music',
-            SERVER  = 'Media Server',
-            IRP     = 'Internet Radio',
-        },
-
         _init = function(_, self, uuid, upnp, notify_online, notify_refresh, read_timeout)
             self.upnp = upnp
             self.uuid = uuid
