@@ -1,0 +1,13 @@
+#!/bin/sh
+
+. ./private.sh
+
+driver=driver/$1/driver
+make $driver
+DRIVER=$(head -1 $driver)
+
+set -x
+./smartthings edge:drivers:uninstall	--hub=$HUB				$DRIVER
+./smartthings edge:channels:assign			--channel=$CHANNEL	$DRIVER
+./smartthings edge:drivers:install	--hub=$HUB	--channel=$CHANNEL	$DRIVER
+./smartthings edge:drivers:logcat	--hub-address=$ADDRESS			$DRIVER
