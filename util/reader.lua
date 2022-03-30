@@ -6,6 +6,7 @@ return classify.single({
     _init = function(_, self, read)
         self._read = read
         self._queue = {}
+        self._closed = false
     end,
 
     -- Dequeue spooled bytes up through "queue[i][j]"
@@ -26,7 +27,15 @@ return classify.single({
     end,
 
     _pump_once = function(self)
+        -- assume self._read (like socket:receive) may read something and indicate it is closed at once.
+        -- we separate these events by returning the something and thereafter error("closed", 0).
+        if self._closed then
+            error("closed", 0)
+        end
         local whole, _error, part = self._read()
+        if "closed" == _error then
+            self._closed = true
+        end
         if whole then
             table.insert(self._queue, whole)
         elseif part and 0 < #part then

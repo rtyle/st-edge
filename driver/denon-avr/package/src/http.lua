@@ -68,26 +68,12 @@ return {
 
     reader = function(_, socket, read_timeout)
         socket:settimeout(0)    -- when anything ready, receive something
-        -- socket:receive may receive something and indicate it is closed at once.
-        -- we separate these events by returning the something and thereafter returning nil, "closed".
-        local closed = false
         return Reader(function()
-            if closed then
-                return nil, "closed"
-            end
             local _, _, select_error = cosock.socket.select({socket}, {}, read_timeout)
             if select_error then
                 error(select_error, 0)     -- expect "timeout", below
             end
-            local whole, receive_error, part = socket:receive(2048)
-            if "closed" == receive_error then
-                closed = true
-            end
-            if whole or (part and #part) then
-                return whole, nil, part
-            else
-                return nil, receive_error
-            end
+            return socket:receive(2048)
         end)
     end,
 
