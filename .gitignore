@@ -4,6 +4,7 @@
 /luarocks
 /lua_modules
 /private.mk
+/private.sh
 /smartthings
 /src/lockbox
 /st-edge-legrand-rflc-dev-1.rockspec

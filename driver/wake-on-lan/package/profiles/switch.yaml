@@ -1,0 +1,19 @@
+name: switch
+components:
+- id: main
+  capabilities:
+  - id: momentary
+    version: 1
+  categories:
+  - name: Switch
+preferences:
+  - name: password
+    title: Password
+    description: "SecureOn password (12 hexadecimal numerals)"
+    required: false
+    preferenceType: string
+    definition:
+      stringType: text
+      minLength: 12
+      maxLength: 12
+      default: "000000000000"

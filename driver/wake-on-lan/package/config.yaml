@@ -1,0 +1,5 @@
+name: 'Wake-on-LAN'
+packageKey: 'wake-on-lan'
+permissions:
+  lan: {}
+  discovery: {}

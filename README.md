@@ -5,6 +5,7 @@
 * [bug](https://github.com/rtyle/st-edge/blob/master/driver/bug/README.md)
 * [legrand-rflc](https://github.com/rtyle/st-edge/blob/master/driver/legrand-rflc/README.md)
 * [sundial](https://github.com/rtyle/st-edge/blob/master/driver/sundial/README.md)
+* [wake-on-lan](https://github.com/rtyle/st-edge/blob/master/driver/wake-on-lan/README.md)
 
 ## Deployment
 

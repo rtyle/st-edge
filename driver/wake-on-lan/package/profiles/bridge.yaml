@@ -1,0 +1,19 @@
+name: bridge
+components:
+- id: main
+  capabilities:
+  - id: refresh
+    version: 1
+  categories:
+  - name: Bridges
+preferences:
+  - name: address
+    title: Address
+    description: "MAC Address (12 hexadecimal numerals)"
+    required: false
+    preferenceType: string
+    definition:
+      stringType: text
+      minLength: 12
+      maxLength: 12
+      default: "000000000000"

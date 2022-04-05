@@ -31,13 +31,16 @@ clean:
 driver/denon-avr/package.zip:		$(shell find driver/denon-avr/package	-follow -type f)
 	(cd $(basename $@); zip ../$(@F) $$(find . -follow) > /dev/null)
 
-driver/legrand-rflc/package.zip:	$(shell find driver/legrand-rflc/package	-follow -type f)
+driver/legrand-rflc/package.zip:	$(shell find driver/legrand-rflc/package -follow -type f)
 	(cd $(basename $@); zip ../$(@F) $$(find . -follow) > /dev/null)
 
-driver/sundial/package.zip:		$(shell find driver/sundial/package		-follow -type f)
+driver/sundial/package.zip:		$(shell find driver/sundial/package	-follow -type f)
 	(cd $(basename $@); zip ../$(@F) $$(find . -follow) > /dev/null)
 
-driver/bug/package.zip:			$(shell find driver/bug/package			-follow -type f)
+driver/wake-on-lan/package.zip:		$(shell find driver/wake-on-lan/package	-follow -type f)
+	(cd $(basename $@); zip ../$(@F) $$(find . -follow) > /dev/null)
+
+driver/bug/package.zip:			$(shell find driver/bug/package		-follow -type f)
 	(cd $(basename $@); zip ../$(@F) $$(find . -follow) > /dev/null)
 
 $(DRIVERS):: %/driver: %/package.zip
