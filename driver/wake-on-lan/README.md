@@ -1,4 +1,4 @@
-# st-edge/driver/sundial
+# st-edge/driver/wake-on-lan
 
 [SmartThings Edge Driver](https://community.smartthings.com/t/preview-smartthings-managed-edge-device-drivers)
 for
