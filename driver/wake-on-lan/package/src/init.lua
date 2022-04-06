@@ -71,12 +71,50 @@ local function encode(decoded)
     return string.pack("BBBBBB", table.unpack(encoded))
 end
 
-local parent, Child
+local Child = classify.single({
+    _init = function(class, self, driver, device)
+        classify.super(class):_init(self, driver, device)
+        self.address = encode(device.device_network_id:match("%s(%x+)"))
+    end,
+
+    removed = function(self)
+        self.address = nil
+        Adapter.removed(self)
+    end,
+
+    info_changed = function(self, event, _)
+        log.debug("info", self.device.device_network_id, event)
+        self.password = encode(self.device.st_store.preferences.password)
+    end,
+
+    push = function(self)
+        log.debug("push", self.device.device_network_id)
+        if self.parent then
+            self.parent:wake(self.address, self.password)
+        end
+    end,
+
+    create = function(driver, parent, address)
+        Adapter.create(driver,
+            table.concat({parent.device.device_network_id, address}, "\t"),
+            CHILD,
+            table.concat({LABEL, address}, " "),
+            parent.device.id)
+    end,
+
+    capability_handlers = {
+        [capabilities.momentary.ID] = {
+            [capabilities.momentary.commands.push.NAME] = function(_, device)
+                Adapter.call(device, PUSH)
+            end,
+        },
+    },
+}, Adapter)
 
 local Parent = classify.single({
     _init = function(class, self, driver, device)
         classify.super(class):_init(self, driver, device)
-        parent = self
+        Child.parent = self
         -- create socket for UDP broadcast to discard port (9)
         self.socket = cosock.socket.udp()
         self.socket:setoption("broadcast", true)
@@ -88,7 +126,7 @@ local Parent = classify.single({
         self.sync = nil
         self.socket:close()
         self.socket = nil
-        parent = nil
+        Child.parent = nil
         Adapter.removed(self)
     end,
 
@@ -111,50 +149,10 @@ local Parent = classify.single({
     end,
 }, Adapter)
 
-Child = classify.single({
-    _init = function(class, self, driver, device)
-        classify.super(class):_init(self, driver, device)
-        self.address = encode(device.device_network_id:match("%s(%x+)"))
-    end,
-
-    removed = function(self)
-        self.address = nil
-        Adapter.removed(self)
-    end,
-
-    info_changed = function(self, event, _)
-        log.debug("info", self.device.device_network_id, event)
-        self.password = encode(self.device.st_store.preferences.password)
-    end,
-
-    push = function(self)
-        log.debug("push", self.device.device_network_id)
-        if parent then
-            parent:wake(self.address, self.password)
-        end
-    end,
-
-    create = function(driver, _parent, address)
-        Adapter.create(driver,
-            table.concat({_parent.device.device_network_id, address}, "\t"),
-            CHILD,
-            table.concat({LABEL, address}, " "),
-            _parent.device.id)
-    end,
-
-    capability_handlers = {
-        [capabilities.momentary.ID] = {
-            [capabilities.momentary.commands.push.NAME] = function(_, device)
-                Adapter.call(device, PUSH)
-            end,
-        },
-    },
-}, Adapter)
-
 Driver("WoL", {
     discovery = function(driver, _, _)
         log.debug("discovery")
-        if nil == parent then
+        if nil == Child.parent then
             Parent.create(driver)
         end
     end,
