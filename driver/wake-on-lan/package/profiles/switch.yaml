@@ -4,6 +4,8 @@ components:
   capabilities:
   - id: momentary
     version: 1
+  - id: switch
+    version: 1
   categories:
   - name: Switch
 preferences:

@@ -17,6 +17,8 @@ local CHILD         = "switch"
 -- Adapter callback support from device
 local ADAPTER       = "adapter"
 local INFO_CHANGED  = "info_changed"
+local OFF           = "off"
+local ON            = "on"
 local PUSH          = "push"
 local REMOVED       = "removed"
 
@@ -87,6 +89,18 @@ local Child = classify.single({
         self.password = encode(self.device.st_store.preferences.password)
     end,
 
+    off = function(self)
+        log.debug("off", self.device.device_network_id)
+        self.device:emit_event(capabilities.switch.switch.off())
+    end,
+
+    on  = function(self)
+        log.debug("on", self.device.device_network_id)
+        self:push()
+        self.device:emit_event(capabilities.switch.switch.on())
+        self.device.thread:call_with_delay(1, function() self:off() end)
+    end,
+
     push = function(self)
         log.debug("push", self.device.device_network_id)
         if self.parent then
@@ -106,6 +120,14 @@ local Child = classify.single({
         [capabilities.momentary.ID] = {
             [capabilities.momentary.commands.push.NAME] = function(_, device)
                 Adapter.call(device, PUSH)
+            end,
+        },
+        [capabilities.switch.ID] = {
+            [capabilities.switch.commands.off.NAME] = function(_, device)
+                Adapter.call(device, OFF)
+            end,
+            [capabilities.switch.commands.on.NAME] = function(_, device)
+                Adapter.call(device, ON)
             end,
         },
     },
