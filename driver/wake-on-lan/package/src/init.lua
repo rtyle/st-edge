@@ -39,7 +39,6 @@ local Adapter = classify.single({
         self.device = nil
         self.driver = nil
         log.debug("removed", device.device_network_id)
-        return device.device_network_id
     end,
 
     call = function(device, method, ...)
@@ -90,7 +89,7 @@ local Parent = classify.single({
         self.socket:close()
         self.socket = nil
         parent = nil
-        return Adapter.removed(self)
+        Adapter.removed(self)
     end,
 
     info_changed = function(self, event, _)
@@ -120,7 +119,7 @@ Child = classify.single({
 
     removed = function(self)
         self.address = nil
-        return Adapter.removed(self)
+        Adapter.removed(self)
     end,
 
     info_changed = function(self, event, _)
@@ -137,7 +136,7 @@ Child = classify.single({
 
     create = function(driver, _parent, address)
         Adapter.create(driver,
-            table.concat({parent.device.device_network_id, address}, "\t"),
+            table.concat({_parent.device.device_network_id, address}, "\t"),
             CHILD,
             table.concat({LABEL, address}, " "),
             _parent.device.id)
