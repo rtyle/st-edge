@@ -81,11 +81,11 @@ local Parent = classify.single({
         self.socket = cosock.socket.udp()
         self.socket:setoption("broadcast", true)
         self.socket:setpeername("255.255.255.255", 9)
-        self.prefix = encode("ffffffffffff")
+        self.sync = encode("ffffffffffff")
     end,
 
     removed = function(self)
-        self.prefix = nil
+        self.sync = nil
         self.socket:close()
         self.socket = nil
         parent = nil
@@ -98,7 +98,7 @@ local Parent = classify.single({
     end,
 
     wake = function(self, address, password)
-        local packet = {self.prefix}
+        local packet = {self.sync}
         for _ = 1, 16 do
             table.insert(packet, address)
         end
