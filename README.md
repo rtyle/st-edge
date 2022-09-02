@@ -29,9 +29,9 @@ Update all submodules of this repository.
 
 	git submodule update --init --recursive
 
-Install the latest (v0.0.0-pre.36, at the time of this writing) smartthings-cli.
+Install the latest smartthings-cli.
 
-	curl -L https://github.com/SmartThingsCommunity/smartthings-cli/releases/download/v0.0.0-pre.36/smartthings-linux.zip | gunzip - | install /dev/stdin smartthings
+	curl -L https://github.com/SmartThingsCommunity/smartthings-cli/releases/download/@smartthings/cli@1.0.0-beta.16/smartthings-linux.zip | gunzip - | install /dev/stdin smartthings
 
 If needed, create a new distribution CHANNEL for these packages.
 
