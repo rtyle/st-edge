@@ -139,6 +139,6 @@
 
 		./smartthings edge:drivers:package	# rebuild, package, upload
 		./smartthings edge:channels:assign	# reassign, latest version
-			./smartthings edge:channels:drivers	# note updated Last Modified Date
+		./smartthings edge:channels:drivers	# note updated Last Modified Date
 		./smartthings edge:drivers:uninstall	# uninstall driver on hub
 		./smartthings edge:drivers:install	# install driver on hub
