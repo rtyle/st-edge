@@ -107,7 +107,7 @@
 
 # smartthings edge API source (look for update)
 
-	curl -L https://github.com/SmartThingsCommunity/SmartThingsEdgeDrivers/releases/download/apiv3_46/lua_libs-api_v3_46X.tar.gz | tar xzf -
+	curl -L https://github.com/SmartThingsCommunity/SmartThingsEdgeDrivers/releases/download/apiv3_46/lua_libs-api_v3_46X.tar.gz | (mkdir -p api/3_46; cd api/3_46; tar xzf -)
 
 # smartthings-cli
 

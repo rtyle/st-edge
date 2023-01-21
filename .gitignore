@@ -11,5 +11,4 @@
 /tools
 /driver/**/package.zip
 /driver/**/driver
-lua_libs-api_v2
-lua_libs-api_v3
+/api
