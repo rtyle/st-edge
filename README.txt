@@ -156,7 +156,7 @@
 		# the driver on the hub will eventually (when, exactly?) be updated; otherwise
 		# reboot the hub or install the updated driver by command
 
-		./smartthings edge:drivers:install	--hub=$HUB --channel=$CHANNEL $DRIVER
+		./smartthings edge:drivers:install --hub=$HUB --channel=$CHANNEL $DRIVER
 
 	# monitor $DRIVER log on hub by its $ADDRESS
 
