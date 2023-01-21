@@ -105,9 +105,10 @@
 			"lua.debug.settings.luaVersion": "5.3"
 		}
 
-# smartthings edge API source (look for update)
+# smartthings edge API source (look for updates)
 
-	curl -L https://github.com/SmartThingsCommunity/SmartThingsEdgeDrivers/releases/download/apiv3_46/lua_libs-api_v3_46X.tar.gz | (mkdir -p api/3_46; cd api/3_46; tar xzf -)
+	curl -L https://github.com/SmartThingsCommunity/SmartThingsEdgeDrivers/releases/download/apiv2_45_1/lua_libs-api_v2_45X.tar.gz	| (d=api/2_45_1	; mkdir -p $d; cd $d; tar xzf -)
+	curl -L https://github.com/SmartThingsCommunity/SmartThingsEdgeDrivers/releases/download/apiv3_46/lua_libs-api_v3_46X.tar.gz	| (d=api/3_46	; mkdir -p $d; cd $d; tar xzf -)
 
 # smartthings-cli
 
