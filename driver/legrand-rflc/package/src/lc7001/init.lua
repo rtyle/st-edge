@@ -87,7 +87,13 @@ local function json_decode(encoded)
         while (begin <= #encoded) do
             local decoded, _end, _error = json.decode(encoded, begin)
             if _error then
-                log.warn("json.decode", encoded:sub(begin), "error", _error)
+                -- log.warn("json.decode", encoded:sub(begin), "error", _error)
+                -- ^ no, don't do this. instead, quietly swallow the error because,
+                -- in the smartthings environment, log.warn implicitly coroutine.yield's a value like
+                -- {from=function: 0xXXXXXX, method="print", params={log_level="warn", log_opts={}, message="..."}}
+                -- which is intended to be processed by the cosock coroutine executor
+                -- and that is not what we want.
+                -- we could yield an error and depend on our caller to log.warn for us but ... not for now.
                 _end = #encoded + 1
             else
                 if "array" == getmetatable(decoded).__jsontype then
