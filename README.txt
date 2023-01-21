@@ -105,6 +105,10 @@
 			"lua.debug.settings.luaVersion": "5.3"
 		}
 
+# smartthings edge API source (look for update)
+
+	curl -L https://github.com/SmartThingsCommunity/SmartThingsEdgeDrivers/releases/download/apiv3_46/lua_libs-api_v3_46X.tar.gz | tar xzf -
+
 # smartthings-cli
 
 	# download an unzip latest smartthings-cli (v0.0.0-pre.36) release
@@ -152,3 +156,7 @@
 		# reboot the hub or install the updated driver by command
 
 		./smartthings edge:drivers:install	--hub=$HUB --channel=$CHANNEL $DRIVER
+
+	# monitor $DRIVER log on hub by its $ADDRESS
+
+		./smartthings edge:drivers:logcat --hub-address=$ADDRESS $DRIVER
