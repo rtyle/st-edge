@@ -109,7 +109,7 @@
 
 	# download an unzip latest smartthings-cli (v0.0.0-pre.36) release
 
-		curl -L https://github.com/SmartThingsCommunity/smartthings-cli/releases/download/v0.0.0-pre.36/smartthings-linux.zip | gunzip - | install /dev/stdin smartthings
+		curl -L https://github.com/SmartThingsCommunity/smartthings-cli/releases/download/%40smartthings%2Fcli%401.0.1/smartthings-linux-x64.tar.gz | tar tzf -
 
 	# as of 2021-12-27, tokens created through
 	#	https://account.smartthings.com/tokens
@@ -135,10 +135,20 @@
 		./smartthings edge:drivers:logcat	# monitor driver log
 		./smartthings edge:drivers:package      # build, package, upload
 
-	# update
+	# update driver by NAME
 
-		./smartthings edge:drivers:package	# rebuild, package, upload
-		./smartthings edge:channels:assign	# reassign, latest version
-		./smartthings edge:channels:drivers	# note updated Last Modified Date
-		./smartthings edge:drivers:uninstall	# uninstall driver on hub
-		./smartthings edge:drivers:install	# install driver on hub
+		. ./private.sh				# uuids for HUB, ADDRESS, CHANNEL, ... (see/edit file)
+
+		NAME=legrand-rflc			# for example
+		make driver/$NAME/driver		# rebuild, package, upload
+		DRIVER=$(head -1 driver/$NAME/driver)	# uuid for DRIVER
+
+		# before assigning the updated driver to the download channel that the hub subscribes to,
+		# if the updated driver will not support its existing devices on the hub, remove them all first
+
+		./smartthings edge:channels:assign --channel=$CHANNEL $DRIVER	# reassign channel to use uploaded version
+
+		# the driver on the hub will eventually (when, exactly?) be updated; otherwise
+		# reboot the hub or install the updated driver by command
+
+		./smartthings edge:drivers:install	--hub=$HUB --channel=$CHANNEL $DRIVER
