@@ -31,7 +31,7 @@ Update all submodules of this repository.
 
 Install the latest smartthings-cli.
 
-    curl -L https://github.com/SmartThingsCommunity/smartthings-cli/releases/download/%40smartthings%2Fcli%401.0.1/smartthings-linux-x64.tar.gz | tar tzf -
+    curl -L https://github.com/SmartThingsCommunity/smartthings-cli/releases/download/%40smartthings%2Fcli%401.6.0/smartthings-linux-x64.tar.gz | tar xzf - | install /dev/stdin smartthings
 
 If needed, create a new distribution CHANNEL for these packages.
 
