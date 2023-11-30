@@ -45,7 +45,7 @@ driver/bug/package.zip:			$(shell find driver/bug/package		-follow -type f)
 
 $(DRIVERS):: %/driver: %/package.zip
 	./smartthings edge:drivers:package --upload $< > /dev/null
-	./smartthings edge:drivers -y --indent=1 | egrep '^ (driverId|name|version|packageKey):' | paste - - - - | grep "packageKey: $$(basename $(@D))" | tr \\t \\n | sed 's/^\s*\w*:\s*//' > $@
+	./smartthings edge:drivers -y --indent=1 | grep -E '^ (driverId|name|version|packageKey):' | paste - - - - | grep "packageKey: $$(basename $(@D))" | tr \\t \\n | sed 's/^\s*\w*:\s*//' > $@
 
 # install all DRIVERS through $(CHANNEL) on $(HUB)
 install: $(DRIVERS)
