@@ -109,6 +109,7 @@
 
 	curl -L https://github.com/SmartThingsCommunity/SmartThingsEdgeDrivers/releases/download/apiv2_45_1/lua_libs-api_v2_45X.tar.gz	| (d=api/2_45_1	; mkdir -p $d; cd $d; tar xzf -)
 	curl -L https://github.com/SmartThingsCommunity/SmartThingsEdgeDrivers/releases/download/apiv3_46/lua_libs-api_v3_46X.tar.gz	| (d=api/3_46	; mkdir -p $d; cd $d; tar xzf -)
+	curl -L https://github.com/SmartThingsCommunity/SmartThingsEdgeDrivers/releases/download/apiv6_49/lua_libs-api_v6_49X.tar.gz	| (d=api/6_49	; mkdir -p $d; cd $d; tar xzf -)
 
 # smartthings-cli
 
