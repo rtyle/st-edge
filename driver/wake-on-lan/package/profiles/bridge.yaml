@@ -5,6 +5,7 @@ components:
   - id: refresh
     version: 1
   categories:
+  - name: Others
   - name: Bridges
 preferences:
   - name: address
@@ -16,4 +17,3 @@ preferences:
       stringType: text
       minLength: 12
       maxLength: 12
-      default: "000000000000"

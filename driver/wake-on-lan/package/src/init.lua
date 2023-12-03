@@ -153,8 +153,15 @@ local Parent = classify.single({
     end,
 
     info_changed = function(self, event, _)
-        log.debug("info", self.device.device_network_id, event)
-        Child.create(self.driver, self, self.device.st_store.preferences.address:lower())
+        local address = self.device.st_store.preferences.address
+        log.debug("info", self.device.device_network_id, event, address)
+        if (type(address) == "string") then         -- defined? (else "userdata")
+            if (nil == address:match("^%x+$")) then -- not all hex nibbles?
+                log.error("info", self.device.device_network_id, event, address, "invalid")
+            else
+                Child.create(self.driver, self, address:lower())
+            end
+        end
     end,
 
     wake = function(self, address, password)
